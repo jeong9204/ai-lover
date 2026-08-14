@@ -1,0 +1,239 @@
+// Supabase 기반 세션 저장소. 익명 session_id로 식별하며 로그인은 없다.
+// sessions / messages / memories 3테이블 구조는 db/migrations/0001_init.sql 참고.
+
+import { supabase } from "./supabase";
+
+export interface ChatMessage {
+  role: "user" | "assistant" | "system_event";
+  content: string;
+  timestamp: number;
+  eventType?: "deleted_message" | "time_skip" | "reconnect_first_message" | "call_request" | "call_ended" | null;
+}
+
+export interface Memory {
+  id: string;
+  text: string;
+  createdAt: number;
+  lastMentionedAt: number | null;
+  importance: number;
+}
+
+export interface SessionData {
+  id: string;
+  messages: ChatMessage[];
+  memories: Memory[];
+  lastMessageAt: number | null;
+  relationshipStage: string;
+  relationshipScore: number;
+  emotion: string;
+  emotionIntensity: number;
+  lastConversationMood: string;
+  userName: string | null;
+}
+
+interface SessionRow {
+  id: string;
+  relationship_stage: string;
+  relationship_score: number;
+  emotion: string;
+  emotion_intensity: number;
+  last_conversation_mood: string;
+  last_active_at: string | null;
+  user_name: string | null;
+}
+
+const SESSION_COLUMNS =
+  "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name";
+
+export type SessionResult =
+  | { status: "ok"; session: SessionData; isNew: boolean }
+  | { status: "error" };
+
+function rowToSessionData(row: SessionRow, messages: ChatMessage[], memories: Memory[]): SessionData {
+  return {
+    id: row.id,
+    messages,
+    memories,
+    lastMessageAt: row.last_active_at ? new Date(row.last_active_at).getTime() : null,
+    relationshipStage: row.relationship_stage,
+    relationshipScore: row.relationship_score,
+    emotion: row.emotion,
+    emotionIntensity: Number(row.emotion_intensity),
+    lastConversationMood: row.last_conversation_mood,
+    userName: row.user_name,
+  };
+}
+
+async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("role, content, event_type, created_at")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return data.map((m) => ({
+    role: m.role as ChatMessage["role"],
+    content: m.content,
+    timestamp: new Date(m.created_at).getTime(),
+    eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
+  }));
+}
+
+async function loadMemories(sessionId: string): Promise<Memory[]> {
+  const { data, error } = await supabase
+    .from("memories")
+    .select("id, content, importance, created_at, last_used_at")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return data.map((m) => ({
+    id: String(m.id),
+    text: m.content,
+    createdAt: new Date(m.created_at).getTime(),
+    lastMentionedAt: m.last_used_at ? new Date(m.last_used_at).getTime() : null,
+    importance: Number(m.importance),
+  }));
+}
+
+/**
+ * sessionId가 없으면 새 세션을 만든다.
+ * sessionId가 있는데 DB에 없으면(오래된 localStorage 등) 새 세션을 만든다 — 덮어쓰지 않음.
+ * sessionId가 있는데 조회 자체가 실패하면(네트워크/장애) status: "error"를 반환한다 —
+ * 이 경우 호출부는 새 세션을 만들면 안 된다 ("없음"과 "실패"를 구분).
+ */
+export async function getOrCreateSession(sessionId: string | null): Promise<SessionResult> {
+  if (sessionId) {
+    const { data, error } = await supabase
+      .from("sessions")
+      .select(SESSION_COLUMNS)
+      .eq("id", sessionId)
+      .maybeSingle();
+
+    if (error) return { status: "error" };
+
+    if (data) {
+      const row = data as SessionRow;
+      const [messages, memories] = await Promise.all([loadMessages(row.id), loadMemories(row.id)]);
+      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories) };
+    }
+    // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
+  }
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert({})
+    .select(SESSION_COLUMNS)
+    .single();
+
+  if (error || !data) return { status: "error" };
+  return { status: "ok", isNew: true, session: rowToSessionData(data as SessionRow, [], []) };
+}
+
+export async function appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
+  await supabase.from("messages").insert({
+    session_id: sessionId,
+    role: message.role,
+    content: message.content,
+    event_type: message.eventType ?? null,
+  });
+}
+
+export async function appendMemory(sessionId: string, text: string, importance = 0.5): Promise<Memory> {
+  const { data } = await supabase
+    .from("memories")
+    .insert({ session_id: sessionId, content: text, importance })
+    .select("id, content, importance, created_at, last_used_at")
+    .single();
+
+  return {
+    id: String(data?.id ?? ""),
+    text,
+    createdAt: data?.created_at ? new Date(data.created_at).getTime() : Date.now(),
+    lastMentionedAt: null,
+    importance,
+  };
+}
+
+export interface SessionPatch {
+  relationshipStage?: string;
+  relationshipScore?: number;
+  emotion?: string;
+  emotionIntensity?: number;
+  lastConversationMood?: string;
+  lastActiveAt?: number;
+  userName?: string | null;
+}
+
+export async function updateSession(sessionId: string, patch: SessionPatch): Promise<void> {
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.relationshipStage !== undefined) update.relationship_stage = patch.relationshipStage;
+  if (patch.relationshipScore !== undefined) update.relationship_score = patch.relationshipScore;
+  if (patch.emotion !== undefined) update.emotion = patch.emotion;
+  if (patch.emotionIntensity !== undefined) update.emotion_intensity = patch.emotionIntensity;
+  if (patch.lastConversationMood !== undefined) update.last_conversation_mood = patch.lastConversationMood;
+  if (patch.lastActiveAt !== undefined) update.last_active_at = new Date(patch.lastActiveAt).toISOString();
+  if (patch.userName !== undefined) update.user_name = patch.userName;
+
+  await supabase.from("sessions").update(update).eq("id", sessionId);
+}
+
+/**
+ * "재접속 시 먼저 말 걸기"를 시작해도 되는지 DB 레벨에서 선점한다. last_active_at이
+ * debounceMs 이내에 이미 갱신됐다면(동시에 들어온 다른 요청이 방금 선점했다면) false를 반환한다.
+ * React StrictMode의 이중 마운트나, 탭 폴링과 수동 새로고침이 겹치는 경우 등으로 같은 세션에
+ * 거의 동시에 여러 요청이 들어와도 재접속 메시지가 중복 생성되지 않게 막는 용도.
+ */
+export async function claimReconnectSlot(sessionId: string, debounceMs = 10000): Promise<boolean> {
+  const cutoff = new Date(Date.now() - debounceMs).toISOString();
+  const { data, error } = await supabase
+    .from("sessions")
+    .update({ last_active_at: new Date().toISOString() })
+    .eq("id", sessionId)
+    .lt("last_active_at", cutoff)
+    .select("id");
+  if (error) return false;
+  return (data?.length ?? 0) > 0;
+}
+
+export interface PushSubscriptionRecord {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export async function savePushSubscription(sessionId: string, sub: PushSubscriptionRecord): Promise<void> {
+  await supabase
+    .from("push_subscriptions")
+    .upsert(
+      { session_id: sessionId, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+      { onConflict: "endpoint" }
+    );
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+}
+
+export async function loadPushSubscriptions(sessionId: string): Promise<PushSubscriptionRecord[]> {
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("session_id", sessionId);
+  if (error || !data) return [];
+  return data;
+}
+
+/**
+ * 알림을 보낼지 검토해야 하는 세션의 id 목록 — 최근 활동이 minElapsedMs보다 오래됐고
+ * 구독이 하나라도 있는 세션만 후보로 좁힌다 (cron이 매번 전체 세션에 LLM을 호출하지 않도록).
+ */
+export async function listSessionsNeedingPresenceCheck(minElapsedMs: number): Promise<string[]> {
+  const cutoff = new Date(Date.now() - minElapsedMs).toISOString();
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("id, push_subscriptions!inner(session_id)")
+    .lt("last_active_at", cutoff)
+    .not("last_active_at", "is", null);
+  if (error || !data) return [];
+  return data.map((row) => row.id as string);
+}

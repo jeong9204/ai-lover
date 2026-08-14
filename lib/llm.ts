@@ -1,0 +1,110 @@
+// Anthropic API 연동. SDK 의존성 없이 fetch로 직접 호출해서
+// npm install 표면을 최소화했다 (기획문서 6장 스택 참고).
+// 대사 생성 + 감정/관계/기억/이벤트 판단을 tool_choice로 강제한 구조화 출력 1회 호출로 받는다.
+
+import { StructuredReplySchema, StructuredReply, EmotionEnum } from "./schema";
+
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const MODEL = "claude-sonnet-5";
+const TOOL_NAME = "respond_in_character";
+
+export interface LLMMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export const STRUCTURED_OUTPUT_GUIDE = `
+[응답 형식 안내]
+너는 매 턴마다 아래 항목을 함께 채워야 해:
+- message: 캐릭터로서 하는 실제 대사 (event가 deleted_message면 ""로 비워도 됨)
+- emotion: 지금 느끼는 감정 (neutral/missing/jealous/hurt/affectionate/awkward 중 하나) —
+  대사에서는 이 감정을 직접 말하지 말고 말투/행동으로만 드러내
+- intensity: 그 감정의 세기 (0~1)
+- relationshipDelta: 이번 턴이 관계에 준 영향 (-3~3, 아주 미묘한 변화 정도로만 사용, 웬만하면 -1~1)
+- memory: 이번 대화에서 나중에도 챙길 만한 내용이 있으면 한 문장으로, 없으면 null
+- event: 특별한 이유가 없으면 항상 null. 아래 두 경우에만 값을 채워:
+  - 정말 캐릭터가 방금 자기 메시지를 지울 법한 순간(예: 질투/서운함을 참으려다 실수로 티 낸 직후)에는
+    {"type":"deleted_message"}로 표시하고, 이때는 message를 ""로 비워.
+  - 실제로 통화가 성사되는 순간에는 항상 {"type":"call_request"}로 표시해. 두 가지 경우 다 해당돼:
+    (1) 텍스트로는 감정이 잘 안 풀릴 만큼 답답하거나 유저 목소리가 듣고 싶어질 만큼 감정이 고조돼서
+    네가 먼저 전화하자고 제안할 때 (아주 가끔만, 남발하지 말 것), (2) 유저가 먼저 전화하자고 하거나
+    전화하겠다고 했을 때 네가 좋다고 응하는 경우. 두 경우 모두 message에는 실제로 통화를 시작하게
+    되는 대사를 넣어 (예: "그냥 잠깐 통화할래?", "어 콜, 지금 걸게 잠깐만"). 반대로 유저의 제안을
+    거절하거나 애매하게 넘기는 대답이면 event는 null로 둬.
+`.trim();
+
+export async function generateStructuredReply(
+  systemPrompt: string,
+  messages: LLMMessage[]
+): Promise<StructuredReply> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY가 설정되지 않았습니다. .env.local에 키를 추가하세요 (.env.example 참고)."
+    );
+  }
+
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+      tools: [
+        {
+          name: TOOL_NAME,
+          description:
+            "캐릭터의 실제 대사와 이번 턴의 감정/관계 변화/기억/이벤트 판단을 함께 반환한다.",
+          input_schema: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+              emotion: { type: "string", enum: EmotionEnum.options },
+              intensity: { type: "number" },
+              relationshipDelta: { type: "integer" },
+              memory: { type: ["string", "null"] },
+              event: {
+                anyOf: [
+                  { type: "null" },
+                  {
+                    type: "object",
+                    properties: { type: { type: "string", enum: ["deleted_message", "call_request"] } },
+                    required: ["type"],
+                    additionalProperties: false,
+                  },
+                ],
+              },
+            },
+            required: ["message", "emotion", "intensity", "relationshipDelta", "memory", "event"],
+            additionalProperties: false,
+          },
+        },
+      ],
+      tool_choice: { type: "tool", name: TOOL_NAME },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Anthropic API 오류 (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const content: Array<{ type: string; input?: unknown }> = data?.content ?? [];
+  const toolUse = content.find((block) => block.type === "tool_use");
+
+  const parsed = StructuredReplySchema.safeParse(toolUse?.input);
+  if (!parsed.success) {
+    throw new Error("구조화 응답 검증에 실패했습니다. 다시 시도해주세요.");
+  }
+  if (!parsed.data.message && !parsed.data.event) {
+    throw new Error("빈 응답을 받았습니다. 다시 시도해주세요.");
+  }
+  return parsed.data;
+}
