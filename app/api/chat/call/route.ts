@@ -22,6 +22,17 @@ const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 �
 const MAX_DURATION_SEC = 3600;
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleCallPost(req);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "알 수 없는 오류" },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const { durationSec } = (await req.json()) as { durationSec?: number };
   if (typeof durationSec !== "number" || !Number.isFinite(durationSec) || durationSec < 0) {
     return NextResponse.json({ error: "durationSec이 필요합니다." }, { status: 400 });

@@ -28,28 +28,46 @@ function presenceContext(session: { lastConversationMood: string; relationshipSt
 }
 
 export async function GET(req: NextRequest) {
-  const result = await getOrCreateSession(getSessionIdHeader(req));
-  if (result.status === "error") {
-    return NextResponse.json({ error: SESSION_LOAD_ERROR }, { status: 503 });
+  try {
+    const result = await getOrCreateSession(getSessionIdHeader(req));
+    if (result.status === "error") {
+      return NextResponse.json({ error: SESSION_LOAD_ERROR }, { status: 503 });
+    }
+
+    const { session } = result;
+    const mood = computeMood(session.lastMessageAt, presenceContext(session));
+    const reconnect = await attemptReconnect(session);
+    const extraMessages: ChatMessage[] = [reconnect?.timeSkipMessage, reconnect?.reconnectMessage].filter(
+      (m): m is ChatMessage => m != null
+    );
+
+    return NextResponse.json({
+      sessionId: session.id,
+      messages: [...session.messages, ...extraMessages],
+      mood: reconnect?.mood ?? mood.state,
+      relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
+      userName: session.userName,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "알 수 없는 오류" },
+      { status: 500 }
+    );
   }
-
-  const { session } = result;
-  const mood = computeMood(session.lastMessageAt, presenceContext(session));
-  const reconnect = await attemptReconnect(session);
-  const extraMessages: ChatMessage[] = [reconnect?.timeSkipMessage, reconnect?.reconnectMessage].filter(
-    (m): m is ChatMessage => m != null
-  );
-
-  return NextResponse.json({
-    sessionId: session.id,
-    messages: [...session.messages, ...extraMessages],
-    mood: reconnect?.mood ?? mood.state,
-    relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
-    userName: session.userName,
-  });
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleChatPost(req);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "알 수 없는 오류" },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const { message } = (await req.json()) as { message: string };
   if (!message || typeof message !== "string") {
     return NextResponse.json({ error: "message가 필요합니다." }, { status: 400 });
