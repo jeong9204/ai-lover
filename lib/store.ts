@@ -7,7 +7,14 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
   content: string;
   timestamp: number;
-  eventType?: "deleted_message" | "time_skip" | "reconnect_first_message" | "call_request" | "call_ended" | null;
+  eventType?:
+    | "deleted_message"
+    | "time_skip"
+    | "reconnect_first_message"
+    | "call_request"
+    | "call_ended"
+    | "confession_ending"
+    | null;
 }
 
 export interface Memory {
@@ -29,6 +36,7 @@ export interface SessionData {
   emotionIntensity: number;
   lastConversationMood: string;
   userName: string | null;
+  confessedAt: number | null;
 }
 
 interface SessionRow {
@@ -40,10 +48,11 @@ interface SessionRow {
   last_conversation_mood: string;
   last_active_at: string | null;
   user_name: string | null;
+  confessed_at: string | null;
 }
 
 const SESSION_COLUMNS =
-  "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name";
+  "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, confessed_at";
 
 export type SessionResult =
   | { status: "ok"; session: SessionData; isNew: boolean }
@@ -61,6 +70,7 @@ function rowToSessionData(row: SessionRow, messages: ChatMessage[], memories: Me
     emotionIntensity: Number(row.emotion_intensity),
     lastConversationMood: row.last_conversation_mood,
     userName: row.user_name,
+    confessedAt: row.confessed_at ? new Date(row.confessed_at).getTime() : null,
   };
 }
 
@@ -184,6 +194,7 @@ export interface SessionPatch {
   lastConversationMood?: string;
   lastActiveAt?: number;
   userName?: string | null;
+  confessedAt?: number;
 }
 
 export async function updateSession(sessionId: string, patch: SessionPatch): Promise<void> {
@@ -193,6 +204,7 @@ export async function updateSession(sessionId: string, patch: SessionPatch): Pro
   if (patch.emotion !== undefined) update.emotion = patch.emotion;
   if (patch.emotionIntensity !== undefined) update.emotion_intensity = patch.emotionIntensity;
   if (patch.lastConversationMood !== undefined) update.last_conversation_mood = patch.lastConversationMood;
+  if (patch.confessedAt !== undefined) update.confessed_at = new Date(patch.confessedAt).toISOString();
   if (patch.lastActiveAt !== undefined) update.last_active_at = new Date(patch.lastActiveAt).toISOString();
   if (patch.userName !== undefined) update.user_name = patch.userName;
 

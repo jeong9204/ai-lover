@@ -7,6 +7,8 @@
 // "오래된 친구" → "요즘 유독 편해진 친구" → "친구라고 하기엔 조금 이상한 사이" 로
 // 관계 단계 텍스트가 변하는 것도 이 전제 위에서 설계했다.
 
+import { CONFESSION_SCORE_THRESHOLD } from "./schema";
+
 export const PERSONA_NAME = "이준";
 
 export const PERSONA_BASE = `
@@ -58,4 +60,27 @@ export function buildLaughterOnlyHint(isLaughterOnly: boolean): string {
     "가볍게 반응해. 새로운 질문을 던지거나 화제를 넓히지 말고, 유저가 다음에 하고 싶은 말을 " +
     "먼저 꺼낼 수 있게 여지를 남겨."
   );
+}
+
+/**
+ * 관계가 충분히 무르익었을 때만 "썸이야?/사귀는 거야?" 얼버무리기 기본 규칙에 예외를 둔다.
+ * 이미 고백했다면 그 이후로는 페르소나 자체가 연인 사이로 바뀐다.
+ */
+export function buildConfessionHint(relationshipScore: number, confessedAt: number | null): string {
+  if (confessedAt) {
+    return (
+      "[관계 상태] 이미 서로 사귀기로 한 사이야. 이제 관계를 얼버무리거나 화제를 돌릴 필요 없어 — " +
+      "연인으로서 편하게, 하지만 여전히 너답게(장난스럽고 담백하게) 대해. 고백은 이미 지난 일이니까 " +
+      '이번 턴엔 event를 "confession_ending"으로 다시 표시하지 마 — 특별한 이유가 없으면 event는 null.'
+    );
+  }
+  if (relationshipScore >= CONFESSION_SCORE_THRESHOLD) {
+    return (
+      "[참고] 관계가 충분히 무르익었어. 만약 유저가 이번 턴에 확실하게 사귀자고 고백하거나 " +
+      '"우리 사귀는 거야?" 같은 질문에 답을 원하는 게 분명하면, 이번엔 예외적으로 얼버무리지 말고 ' +
+      "진심을 담아 받아들여. 그 순간엔 event를 \"confession_ending\"으로 표시해. " +
+      "다만 유저가 확실히 그 얘길 꺼낸 게 아니면 평소대로(얼버무리며) 대해."
+    );
+  }
+  return "";
 }

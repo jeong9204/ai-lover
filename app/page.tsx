@@ -5,7 +5,13 @@ import { PERSONA_NAME, isLaughterOnlyMessage } from "@/lib/persona";
 import { formatCallDuration } from "@/lib/events";
 
 type Role = "user" | "assistant" | "system_event";
-type EventType = "deleted_message" | "time_skip" | "reconnect_first_message" | "call_request" | "call_ended";
+type EventType =
+  | "deleted_message"
+  | "time_skip"
+  | "reconnect_first_message"
+  | "call_request"
+  | "call_ended"
+  | "confession_ending";
 interface Msg {
   role: Role;
   content: string;
@@ -305,7 +311,12 @@ export default function Home() {
             role: "assistant",
             content: data.reply,
             timestamp: Date.now(),
-            eventType: data.event?.type === "call_request" ? "call_request" : null,
+            eventType:
+              data.event?.type === "call_request"
+                ? "call_request"
+                : data.event?.type === "confession_ending"
+                  ? "confession_ending"
+                  : null,
           },
         ]);
       }
@@ -481,6 +492,19 @@ export default function Home() {
             <p key={i} className="py-1 text-center text-xs text-gray-500">
               {m.content}
             </p>
+          ) : m.eventType === "confession_ending" ? (
+            <div key={i} className="my-2 flex flex-col items-center gap-2">
+              <div className="flex w-full items-center gap-2 text-pink-500">
+                <div className="h-px flex-1 bg-pink-300/60" />
+                <span className="text-xs font-semibold">💕 이제 두 사람은 연인이에요</span>
+                <div className="h-px flex-1 bg-pink-300/60" />
+              </div>
+              <div className="flex justify-start self-start">
+                <div className="max-w-[75%] rounded-2xl border border-pink-200 bg-pink-50 px-3 py-2 text-sm text-gray-900 shadow">
+                  {m.content}
+                </div>
+              </div>
+            </div>
           ) : (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div

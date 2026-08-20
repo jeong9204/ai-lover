@@ -31,6 +31,10 @@ export const STRUCTURED_OUTPUT_GUIDE = `
     전화하겠다고 했을 때 네가 좋다고 응하는 경우. 두 경우 모두 message에는 실제로 통화를 시작하게
     되는 대사를 넣어 (예: "그냥 잠깐 통화할래?", "어 콜, 지금 걸게 잠깐만"). 반대로 유저의 제안을
     거절하거나 애매하게 넘기는 대답이면 event는 null로 둬.
+  - system prompt에 "[참고] 관계가 충분히 무르익었어..." 힌트가 있고, 유저가 이번 턴에 확실하게
+    사귀자고 고백하거나 관계를 확정 짓는 질문에 답을 원하는 게 분명한데 네가 그걸 진심으로 받아들이는
+    경우에만 {"type":"confession_ending"}으로 표시해. 이 힌트가 없거나 아직 확실한 고백이 아니면
+    이 이벤트를 쓰지 마 — 그럴 땐 페르소나 기본 규칙대로 얼버무려.
 `.trim();
 
 export async function generateStructuredReply(
@@ -74,7 +78,9 @@ export async function generateStructuredReply(
                   { type: "null" },
                   {
                     type: "object",
-                    properties: { type: { type: "string", enum: ["deleted_message", "call_request"] } },
+                    properties: {
+                      type: { type: "string", enum: ["deleted_message", "call_request", "confession_ending"] },
+                    },
                     required: ["type"],
                     additionalProperties: false,
                   },

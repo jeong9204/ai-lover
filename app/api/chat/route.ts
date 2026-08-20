@@ -11,9 +11,15 @@ import {
 import { computeMood, PresenceContext } from "@/lib/mood";
 import { detectJealousyTrigger, JEALOUSY_PROMPT_HINT, buildEmotionPromptHint } from "@/lib/jealousy";
 import { pickRelevantMemories, buildMemoryPromptHint } from "@/lib/memory";
-import { PERSONA_BASE, buildUserNameHint, isLaughterOnlyMessage, buildLaughterOnlyHint } from "@/lib/persona";
+import {
+  PERSONA_BASE,
+  buildUserNameHint,
+  isLaughterOnlyMessage,
+  buildLaughterOnlyHint,
+  buildConfessionHint,
+} from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
-import { stageForScore, conversationMoodFromEmotion, Emotion } from "@/lib/schema";
+import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
 import { recentDeletedMessageHint } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
 
@@ -105,6 +111,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (deletedHint) systemPromptParts.push(deletedHint);
   const laughterHint = buildLaughterOnlyHint(isLaughterOnlyMessage(message));
   if (laughterHint) systemPromptParts.push(laughterHint);
+  const confessionHint = buildConfessionHint(session.relationshipScore, session.confessedAt);
+  if (confessionHint) systemPromptParts.push(confessionHint);
   if (isJealous) systemPromptParts.push(`[참고 신호]\n${JEALOUSY_PROMPT_HINT}`);
   const memoryHint = buildMemoryPromptHint(relevantMemories);
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
@@ -130,6 +138,10 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const now = Date.now();
   await appendMessage(session.id, { role: "user", content: message, timestamp: now });
 
+  // 이미 고백이 끝난 세션이면 LLM이 event를 또 confession_ending으로 표시해도 무시한다 —
+  // 매 턴 "연인이 됐어요" 배너가 반복되는 걸 막는 서버 쪽 안전장치 (프롬프트만으로는 100% 못 막음).
+  const justConfessed = structured.event?.type === "confession_ending" && !session.confessedAt;
+
   if (structured.event?.type === "deleted_message") {
     await appendMessage(session.id, {
       role: "system_event",
@@ -142,12 +154,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       role: "assistant",
       content: structured.message,
       timestamp: now,
-      eventType: structured.event?.type === "call_request" ? "call_request" : null,
+      eventType: structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null,
     });
   }
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
-  const relationshipStage = stageForScore(relationshipScore);
+  const relationshipStage =
+    justConfessed || session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,
@@ -155,6 +168,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     emotionIntensity: structured.intensity,
     lastConversationMood: conversationMoodFromEmotion(structured.emotion),
     lastActiveAt: now,
+    ...(justConfessed ? { confessedAt: now } : {}),
   });
 
   if (structured.memory) {
