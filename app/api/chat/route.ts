@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateSession, appendMessage, appendMemory, updateSession, ChatMessage } from "@/lib/store";
+import {
+  getOrCreateSession,
+  appendMessage,
+  appendMemory,
+  updateSession,
+  countMessagesToday,
+  DAILY_MESSAGE_LIMIT,
+  ChatMessage,
+} from "@/lib/store";
 import { computeMood, PresenceContext } from "@/lib/mood";
 import { detectJealousyTrigger, JEALOUSY_PROMPT_HINT, buildEmotionPromptHint } from "@/lib/jealousy";
 import { pickRelevantMemories, buildMemoryPromptHint } from "@/lib/memory";
@@ -52,6 +60,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: SESSION_LOAD_ERROR }, { status: 503 });
   }
   const { session } = result;
+
+  if ((await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+    return NextResponse.json(
+      { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
+      { status: 429 }
+    );
+  }
 
   const mood = computeMood(session.lastMessageAt, presenceContext(session));
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당

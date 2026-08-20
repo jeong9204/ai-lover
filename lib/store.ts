@@ -64,6 +64,28 @@ function rowToSessionData(row: SessionRow, messages: ChatMessage[], memories: Me
   };
 }
 
+// 인증 없이 누구나 세션을 만들 수 있는 구조라, LLM 호출을 유발하는 요청(채팅 전송/통화 종료)에
+// 세션당 하루 한도를 걸어둔다 — 안 걸면 스크립트로 두드렸을 때 Anthropic 비용이 무제한으로 늘어난다.
+export const DAILY_MESSAGE_LIMIT = 50;
+
+function startOfTodayKST(): Date {
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(Date.now() + KST_OFFSET_MS);
+  const kstMidnight = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+  return new Date(kstMidnight - KST_OFFSET_MS);
+}
+
+/** 이 세션이 오늘(KST 기준) 주고받은 메시지 수 — LLM 호출 한도 체크용. */
+export async function countMessagesToday(sessionId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .gte("created_at", startOfTodayKST().toISOString());
+  if (error) return 0;
+  return count ?? 0;
+}
+
 async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from("messages")

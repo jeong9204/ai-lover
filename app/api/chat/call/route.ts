@@ -3,7 +3,14 @@
 // generateStructuredReply()로 한 번 더 생성한다 (reconnect의 "먼저 말 걸기"와 같은 패턴).
 
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateSession, appendMessage, updateSession, ChatMessage } from "@/lib/store";
+import {
+  getOrCreateSession,
+  appendMessage,
+  updateSession,
+  countMessagesToday,
+  DAILY_MESSAGE_LIMIT,
+  ChatMessage,
+} from "@/lib/store";
 import { computeMood } from "@/lib/mood";
 import { buildEmotionPromptHint } from "@/lib/jealousy";
 import { PERSONA_BASE, buildUserNameHint } from "@/lib/persona";
@@ -26,6 +33,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: SESSION_LOAD_ERROR }, { status: 503 });
   }
   const { session } = result;
+
+  if ((await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+    return NextResponse.json(
+      { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
+      { status: 429 }
+    );
+  }
 
   const now = Date.now();
   const callEndedMessage: ChatMessage = {
