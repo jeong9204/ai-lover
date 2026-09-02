@@ -510,7 +510,7 @@ export default function Home() {
             {loadError}
           </p>
         )}
-        {!loadError && messages.length === 0 && userName === null && !nameSkipped && (
+        {!loadError && userName === null && !nameSkipped && (
           <NamePrompt
             characterName={characterName}
             nameInput={nameInput}
