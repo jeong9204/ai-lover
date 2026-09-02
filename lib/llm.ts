@@ -39,6 +39,8 @@ export const STRUCTURED_OUTPUT_GUIDE = `
     {"type":"meetup_request"}로 표시해. "언젠가 보자", "만나면 좋겠다" 같은 막연한 말이나
     네가 거절/보류하는 답이면 event는 null. 이 이벤트를 쓸 때 message는 카톡에서 약속을 잡는
     짧은 대사로만 써. 실제 만난 장면을 길게 연기하지 마.
+    이미 만남 이벤트가 발생한 뒤 유저가 "씻고 나왔다", "문 잠갔다", "들어왔다", "도착했다"처럼
+    현재 상태를 보고하는 말에는 절대 meetup_request를 다시 쓰지 마. 그때는 카톡 답장만 해.
 `.trim();
 
 export async function generateStructuredReply(

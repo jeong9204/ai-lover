@@ -24,7 +24,12 @@ import {
 } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
-import { buildMeetupCompletedLabel, buildMeetupReturnMessage, recentDeletedMessageHint } from "@/lib/events";
+import {
+  buildMeetupCompletedLabel,
+  buildMeetupReturnMessage,
+  isExplicitMeetupRequest,
+  recentDeletedMessageHint,
+} from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
@@ -163,6 +168,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   // 이미 고백이 끝난 세션이면 LLM이 event를 또 confession_ending으로 표시해도 무시한다 —
   // 매 턴 "연인이 됐어요" 배너가 반복되는 걸 막는 서버 쪽 안전장치 (프롬프트만으로는 100% 못 막음).
   const justConfessed = structured.event?.type === "confession_ending" && !session.confessedAt;
+  const canCreateMeetup = isExplicitMeetupRequest(message);
 
   let replyEventType: ChatMessage["eventType"] = null;
   let photoMessage: ChatMessage | null = null;
@@ -180,7 +186,9 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       structured.event?.type === "call_request"
         ? "call_request"
         : structured.event?.type === "meetup_request"
-          ? "meetup_request"
+          ? canCreateMeetup
+            ? "meetup_request"
+            : null
           : justConfessed
             ? "confession_ending"
             : null;

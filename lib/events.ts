@@ -64,6 +64,18 @@ export function buildMeetupReturnMessage(personaType: PersonaType): string {
   return "집 들어갔어?\n아까 좀 재밌긴 했다.";
 }
 
+const EXPLICIT_MEETUP_REQUEST_PATTERN =
+  /(만날래|만나자|보자|볼래|얼굴\s*볼|잠깐\s*볼|나와|나올래|와줄래|올래|데리러\s*(갈게|와|올래)|보러\s*(갈게|와|올래))/;
+
+const MEETUP_FALSE_POSITIVE_PATTERN =
+  /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고)/;
+
+export function isExplicitMeetupRequest(message: string): boolean {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!EXPLICIT_MEETUP_REQUEST_PATTERN.test(normalized)) return false;
+  return !MEETUP_FALSE_POSITIVE_PATTERN.test(normalized);
+}
+
 /** 직전 턴에 삭제 이벤트가 있었다면, 다음 턴 system prompt에 한 줄로 접어 넣는다. */
 export function recentDeletedMessageHint(hadRecentDeletedMessage: boolean): string {
   if (!hadRecentDeletedMessage) return "";
