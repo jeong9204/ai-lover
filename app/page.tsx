@@ -61,6 +61,7 @@ export default function Home() {
   const messagesRef = useRef<Msg[]>([]);
   const loadingRef = useRef(false);
   const callIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -75,6 +76,15 @@ export default function Home() {
     if (sessionIdRef.current) headers.set("x-session-id", sessionIdRef.current);
     if (devSecretRef.current) headers.set("x-dev-secret", devSecretRef.current);
     return fetch(url, { ...init, headers });
+  }
+
+  function showTemporaryStatus(message: string, durationMs = 3000) {
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    setPushStatus(message);
+    statusTimeoutRef.current = setTimeout(() => {
+      setPushStatus(null);
+      statusTimeoutRef.current = null;
+    }, durationMs);
   }
 
   async function loadSession() {
@@ -189,7 +199,7 @@ export default function Home() {
         });
         await existing.unsubscribe();
         setPushSubscribed(false);
-        setPushStatus("알림을 껐어요.");
+        showTemporaryStatus("알림을 껐어요.");
         return;
       }
 
@@ -213,7 +223,7 @@ export default function Home() {
         throw new Error(data.error ?? `구독 저장 실패 (${res.status})`);
       }
       setPushSubscribed(true);
-      setPushStatus("알림 구독 완료! 탭을 닫아도 캐릭터가 먼저 연락하면 알려드릴게요.");
+      showTemporaryStatus("알림 구독 완료! 탭을 닫아도 캐릭터가 먼저 연락하면 알려드릴게요.", 4500);
     } catch (e) {
       setPushStatus(`구독 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -263,7 +273,7 @@ export default function Home() {
       setMessages([]);
       setMood("calm");
       setRelationshipStage("오래된 친구");
-      setPushStatus("대화를 초기화했어요.");
+      showTemporaryStatus("대화를 초기화했어요.");
       await loadSession();
     } catch (e) {
       setError(e instanceof Error ? e.message : "초기화에 실패했어요.");
@@ -492,6 +502,7 @@ export default function Home() {
   useEffect(() => {
     return () => {
       if (callIntervalRef.current) clearInterval(callIntervalRef.current);
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
     };
   }, []);
 
