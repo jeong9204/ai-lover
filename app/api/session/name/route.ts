@@ -19,7 +19,11 @@ export async function POST(req: NextRequest) {
 
     await updateSession(result.session.id, { userName: trimmed });
 
-    return NextResponse.json({ sessionId: result.session.id, userName: trimmed });
+    return NextResponse.json({
+      sessionId: result.session.id,
+      userName: trimmed,
+      characterName: result.session.characterName,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "알 수 없는 오류" },

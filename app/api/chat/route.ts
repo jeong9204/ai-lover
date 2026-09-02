@@ -16,6 +16,7 @@ import { pickRelevantMemories, buildMemoryPromptHint } from "@/lib/memory";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import {
   PERSONA_BASE,
+  buildCharacterNameHint,
   buildUserNameHint,
   isLaughterOnlyMessage,
   buildLaughterOnlyHint,
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
       mood: reconnect?.mood ?? mood.state,
       relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
       userName: session.userName,
+      characterName: session.characterName,
       devMode: isDeveloperRequest(req),
     });
   } catch (err) {
@@ -115,6 +117,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   const systemPromptParts = [
     PERSONA_BASE,
+    buildCharacterNameHint(session.characterName),
     buildUserNameHint(session.userName),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
@@ -217,6 +220,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     sessionId: session.id,
+    characterName: session.characterName,
     reply: structured.message,
     event: structured.event,
     mood: mood.state,

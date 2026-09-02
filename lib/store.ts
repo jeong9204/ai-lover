@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
 import { createCharacterDailyState } from "./daily-state";
 import { koreanDateKey } from "./korean-date";
 import { MilestoneDraft } from "./milestones";
-import { pickInitialMessage } from "./persona";
+import { PERSONA_NAME, pickCharacterName, pickInitialMessage } from "./persona";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
@@ -71,6 +71,7 @@ export interface SessionData {
   emotionIntensity: number;
   lastConversationMood: string;
   userName: string | null;
+  characterName: string;
   confessedAt: number | null;
 }
 
@@ -83,6 +84,7 @@ interface SessionRow {
   last_conversation_mood: string;
   last_active_at: string | null;
   user_name: string | null;
+  character_name?: string | null;
   confessed_at: string | null;
 }
 
@@ -95,6 +97,9 @@ interface MessageRow {
 }
 
 const SESSION_COLUMNS =
+  "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, character_name, confessed_at";
+
+const FALLBACK_SESSION_COLUMNS =
   "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, confessed_at";
 
 export type SessionResult =
@@ -119,8 +124,43 @@ function rowToSessionData(
     emotionIntensity: Number(row.emotion_intensity),
     lastConversationMood: row.last_conversation_mood,
     userName: row.user_name,
+    characterName: row.character_name ?? PERSONA_NAME,
     confessedAt: row.confessed_at ? new Date(row.confessed_at).getTime() : null,
   };
+}
+
+async function loadSessionRow(sessionId: string): Promise<{ row: SessionRow | null; error: unknown }> {
+  const { data, error } = await supabase
+    .from("sessions")
+    .select(SESSION_COLUMNS)
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!error) return { row: data as SessionRow | null, error: null };
+
+  const fallback = await supabase
+    .from("sessions")
+    .select(FALLBACK_SESSION_COLUMNS)
+    .eq("id", sessionId)
+    .maybeSingle();
+  return { row: fallback.data as SessionRow | null, error: fallback.error };
+}
+
+async function createSessionRow(): Promise<{ row: SessionRow | null; error: unknown }> {
+  const sessionSeed = crypto.randomUUID();
+  const characterName = pickCharacterName(sessionSeed);
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert({ id: sessionSeed, character_name: characterName })
+    .select(SESSION_COLUMNS)
+    .single();
+  if (!error) return { row: data as SessionRow, error: null };
+
+  const fallback = await supabase
+    .from("sessions")
+    .insert({ id: sessionSeed })
+    .select(FALLBACK_SESSION_COLUMNS)
+    .single();
+  return { row: fallback.data as SessionRow | null, error: fallback.error };
 }
 
 // 인증 없이 누구나 세션을 만들 수 있는 구조라, LLM 호출을 유발하는 요청(채팅 전송/통화 종료)에
@@ -232,16 +272,11 @@ async function loadMilestones(sessionId: string): Promise<Milestone[]> {
  */
 export async function getOrCreateSession(sessionId: string | null): Promise<SessionResult> {
   if (sessionId) {
-    const { data, error } = await supabase
-      .from("sessions")
-      .select(SESSION_COLUMNS)
-      .eq("id", sessionId)
-      .maybeSingle();
+    const { row, error } = await loadSessionRow(sessionId);
 
     if (error) return { status: "error" };
 
-    if (data) {
-      const row = data as SessionRow;
+    if (row) {
       const [messages, memories, milestones] = await Promise.all([
         loadMessages(row.id),
         loadMemories(row.id),
@@ -252,14 +287,9 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
     // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
   }
 
-  const { data, error } = await supabase
-    .from("sessions")
-    .insert({})
-    .select(SESSION_COLUMNS)
-    .single();
+  const { row, error } = await createSessionRow();
 
-  if (error || !data) return { status: "error" };
-  const row = data as SessionRow;
+  if (error || !row) return { status: "error" };
   const initialMessage: ChatMessage = {
     role: "assistant",
     content: pickInitialMessage(row.id),

@@ -12,7 +12,6 @@ import {
 } from "@/lib/store";
 import { attemptReconnect } from "@/lib/reconnect";
 import { sendPushNotification } from "@/lib/push";
-import { PERSONA_NAME } from "@/lib/persona";
 
 const MIN_ELAPSED_MS = 30 * 60 * 1000; // Presence가 "calm"을 벗어날 수 있는 최소 시간(30분)과 맞춘다.
 
@@ -39,7 +38,7 @@ export async function POST(req: NextRequest) {
       try {
         const { expired } = await sendPushNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          { title: PERSONA_NAME, body: reconnect.reconnectMessage.content }
+          { title: result.session.characterName, body: reconnect.reconnectMessage.content }
         );
         if (expired) await deletePushSubscription(sub.endpoint);
         else notified += 1;

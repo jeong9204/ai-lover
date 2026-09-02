@@ -1,13 +1,13 @@
-import { PERSONA_NAME } from "@/lib/persona";
 import { formatCallDuration } from "@/lib/events";
 
 interface CallOverlayProps {
   activeCall: boolean;
   callSeconds: number;
+  characterName: string;
   onEndCall: () => void;
 }
 
-export function CallOverlay({ activeCall, callSeconds, onEndCall }: CallOverlayProps) {
+export function CallOverlay({ activeCall, callSeconds, characterName, onEndCall }: CallOverlayProps) {
   if (!activeCall) return null;
 
   return (
@@ -17,7 +17,7 @@ export function CallOverlay({ activeCall, callSeconds, onEndCall }: CallOverlayP
         <div className="flex h-24 w-24 animate-pulse items-center justify-center rounded-full bg-white/10 text-4xl">
           📞
         </div>
-        <p className="text-lg font-semibold">{PERSONA_NAME}</p>
+        <p className="text-lg font-semibold">{characterName}</p>
         <p className="text-sm text-white/70">통화 중 · {formatCallDuration(callSeconds)}</p>
       </div>
       <button

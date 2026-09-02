@@ -43,6 +43,7 @@ export default function Home() {
   const [pushSupported, setPushSupported] = useState(false);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [characterName, setCharacterName] = useState(PERSONA_NAME);
   const [nameSkipped, setNameSkipped] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [nameSubmitting, setNameSubmitting] = useState(false);
@@ -90,6 +91,7 @@ export default function Home() {
       setMood(data.mood ?? "calm");
       setRelationshipStage(data.relationshipStage ?? "오래된 친구");
       setUserName(data.userName ?? null);
+      setCharacterName(data.characterName ?? PERSONA_NAME);
       setDevMode(Boolean(data.devMode));
       setLoadError(null);
     } catch (e) {
@@ -136,6 +138,7 @@ export default function Home() {
         localStorage.setItem(SESSION_STORAGE_KEY, data.sessionId);
       }
       setUserName(data.userName ?? trimmed);
+      setCharacterName(data.characterName ?? characterName);
     } catch (e) {
       setError(e instanceof Error ? e.message : "이름 저장에 실패했어요.");
     } finally {
@@ -248,6 +251,7 @@ export default function Home() {
       sessionIdRef.current = null;
       setNameSkipped(false);
       setUserName(null);
+      setCharacterName(PERSONA_NAME);
       setNameInput("");
       setMessages([]);
       setMood("calm");
@@ -279,6 +283,7 @@ export default function Home() {
           setMessages(serverMessages);
           setMood(data.mood ?? "calm");
           setRelationshipStage(data.relationshipStage ?? relationshipStage);
+          setCharacterName(data.characterName ?? characterName);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       } catch {
@@ -357,7 +362,7 @@ export default function Home() {
           ...prev,
           {
             role: "system_event",
-            content: `${PERSONA_NAME}님이 메시지를 삭제했습니다.`,
+            content: `${characterName}님이 메시지를 삭제했습니다.`,
             timestamp: Date.now(),
             eventType: "deleted_message",
           },
@@ -389,6 +394,7 @@ export default function Home() {
       }
       setMood(data.mood ?? "calm");
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
+      setCharacterName(data.characterName ?? characterName);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
@@ -463,6 +469,7 @@ export default function Home() {
       setMessages((prev) => [...prev, ...appended]);
       setMood(data.mood ?? mood);
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
+      setCharacterName(data.characterName ?? characterName);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       if (data.error) setError(data.error);
     } catch (e) {
@@ -481,6 +488,7 @@ export default function Home() {
   return (
     <main className="mx-auto flex h-screen max-w-md flex-col bg-[#b2c7da]">
       <ChatHeader
+        characterName={characterName}
         relationshipStage={relationshipStage}
         pushSupported={pushSupported}
         pushSubscribed={pushSubscribed}
@@ -504,6 +512,7 @@ export default function Home() {
         )}
         {!loadError && messages.length === 0 && userName === null && !nameSkipped && (
           <NamePrompt
+            characterName={characterName}
             nameInput={nameInput}
             nameSubmitting={nameSubmitting}
             onNameInputChange={setNameInput}
@@ -533,7 +542,12 @@ export default function Home() {
         onPassTurn={passTurn}
       />
 
-      <CallOverlay activeCall={activeCall} callSeconds={callSeconds} onEndCall={endCall} />
+      <CallOverlay
+        activeCall={activeCall}
+        callSeconds={callSeconds}
+        characterName={characterName}
+        onEndCall={endCall}
+      />
     </main>
   );
 }

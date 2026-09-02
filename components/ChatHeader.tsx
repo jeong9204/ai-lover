@@ -1,6 +1,5 @@
-import { PERSONA_NAME } from "@/lib/persona";
-
 interface ChatHeaderProps {
+  characterName: string;
   relationshipStage: string;
   pushSupported: boolean;
   pushSubscribed: boolean;
@@ -13,6 +12,7 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({
+  characterName,
   relationshipStage,
   pushSupported,
   pushSubscribed,
@@ -26,7 +26,7 @@ export function ChatHeader({
   return (
     <header className="flex items-center justify-between bg-[#9db8ce] px-4 py-3 shadow">
       <div>
-        <h1 className="text-lg font-bold text-gray-800">{PERSONA_NAME}</h1>
+        <h1 className="text-lg font-bold text-gray-800">{characterName}</h1>
       </div>
       <div className="flex items-center gap-2">
         {pushSupported && (

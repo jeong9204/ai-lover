@@ -16,7 +16,7 @@ import {
 } from "@/lib/store";
 import { computeMood } from "@/lib/mood";
 import { buildEmotionPromptHint } from "@/lib/jealousy";
-import { PERSONA_BASE, buildUserNameHint } from "@/lib/persona";
+import { PERSONA_BASE, buildCharacterNameHint, buildUserNameHint } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion } from "@/lib/schema";
 import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
@@ -80,6 +80,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const dailyStateHint = buildDailyStatePromptHint(await getOrCreateCharacterDailyState(session.id));
   const systemPromptParts = [
     PERSONA_BASE,
+    buildCharacterNameHint(session.characterName),
     buildUserNameHint(session.userName),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
@@ -144,6 +145,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     sessionId: session.id,
+    characterName: session.characterName,
     callEndedMessage,
     replyMessage,
     mood: mood.state,
