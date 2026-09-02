@@ -139,6 +139,9 @@ export default function Home() {
       }
       setUserName(data.userName ?? trimmed);
       setCharacterName(data.characterName ?? characterName);
+      if (data.initialMessage) {
+        setMessages((prev) => [...prev, data.initialMessage]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "이름 저장에 실패했어요.");
     } finally {

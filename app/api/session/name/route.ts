@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateSession, updateSession } from "@/lib/store";
+import { appendInitialMessageIfNeeded, getOrCreateSession, updateSession } from "@/lib/store";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_NAME_LENGTH = 20;
@@ -18,11 +18,13 @@ export async function POST(req: NextRequest) {
     }
 
     await updateSession(result.session.id, { userName: trimmed });
+    const initialMessage = await appendInitialMessageIfNeeded(result.session);
 
     return NextResponse.json({
       sessionId: result.session.id,
       userName: trimmed,
       characterName: result.session.characterName,
+      initialMessage,
     });
   } catch (err) {
     return NextResponse.json(

@@ -290,14 +290,20 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
   const { row, error } = await createSessionRow();
 
   if (error || !row) return { status: "error" };
+  return { status: "ok", isNew: true, session: rowToSessionData(row, [], [], []) };
+}
+
+export async function appendInitialMessageIfNeeded(session: SessionData): Promise<ChatMessage | null> {
+  if (session.messages.length > 0) return null;
+
   const initialMessage: ChatMessage = {
     role: "assistant",
-    content: pickInitialMessage(row.id),
+    content: pickInitialMessage(session.id),
     timestamp: Date.now(),
     eventType: null,
   };
-  await appendMessage(row.id, initialMessage);
-  return { status: "ok", isNew: true, session: rowToSessionData(row, [initialMessage], [], []) };
+  await appendMessage(session.id, initialMessage);
+  return initialMessage;
 }
 
 export async function appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
