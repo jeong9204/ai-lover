@@ -4,8 +4,9 @@
 // 경과 시간 자체는 Presence/mood 계산에만 쓰고, 화면의 날짜 구분은 실제 메시지 timestamp를
 // 기준으로 클라이언트에서 렌더링한다.
 
-import { MoodState } from "./mood";
-import { PersonaType } from "./persona";
+import type { MoodState } from "./mood";
+import type { PersonaType } from "./persona";
+import type { ChatMessage } from "./store";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -74,6 +75,30 @@ export function isExplicitMeetupRequest(message: string): boolean {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!EXPLICIT_MEETUP_REQUEST_PATTERN.test(normalized)) return false;
   return !MEETUP_FALSE_POSITIVE_PATTERN.test(normalized);
+}
+
+export function hasRecentMeetupContext(messages: ChatMessage[], lookback = 12): boolean {
+  return messages.slice(-lookback).some((message) => message.eventType === "meetup_completed");
+}
+
+export function buildAfterMeetupPromptHint(hasContext: boolean, personaType: PersonaType): string {
+  if (!hasContext) return "";
+
+  const tone =
+    personaType === "northern_duke"
+      ? "짧고 무뚝뚝하게 챙긴다. 걱정을 길게 설명하지 말고 행동 지시처럼 툭 말한다."
+      : personaType === "flirty"
+        ? "장난스럽고 능글맞게 받아치되, 방금 만난 여운을 가볍게 남긴다."
+        : "오래된 친구처럼 편하게 걱정하고 놀리며, 방금 만난 여운을 자연스럽게 이어간다.";
+
+  return [
+    "[최근 만남 이후]",
+    "최근 대화에서 둘은 이미 잠깐 만나고 돌아왔다.",
+    "이후 대화는 새 만남 이벤트를 만들지 말고, 귀가 후 카톡의 여운처럼 이어간다.",
+    "유저가 문, 씻기, 머리 말리기, 도착, 들어감, 나옴 같은 말을 해도 실제 만남 장면을 다시 시작하지 않는다.",
+    "필요하면 '방금 보고 온 사람'처럼 걱정하거나 장난치되, 카톡 대화 안에서만 반응한다.",
+    `톤: ${tone}`,
+  ].join("\n");
 }
 
 /** 직전 턴에 삭제 이벤트가 있었다면, 다음 턴 system prompt에 한 줄로 접어 넣는다. */

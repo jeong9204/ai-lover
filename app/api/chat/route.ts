@@ -25,8 +25,10 @@ import {
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
 import {
+  buildAfterMeetupPromptHint,
   buildMeetupCompletedLabel,
   buildMeetupReturnMessage,
+  hasRecentMeetupContext,
   isExplicitMeetupRequest,
   recentDeletedMessageHint,
 } from "@/lib/events";
@@ -141,6 +143,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  const afterMeetupHint = buildAfterMeetupPromptHint(
+    hasRecentMeetupContext(session.messages),
+    session.personaType
+  );
+  if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
   const photoShareHint = buildPhotoSharePromptHint(pendingPhotoMessage);
   if (photoShareHint) systemPromptParts.push(photoShareHint);
 
