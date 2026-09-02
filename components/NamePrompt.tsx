@@ -1,3 +1,5 @@
+import { subjectParticle } from "@/lib/korean-particle";
+
 interface NamePromptProps {
   characterName: string;
   nameInput: string;
@@ -15,9 +17,14 @@ export function NamePrompt({
   onSubmitName,
   onSkipName,
 }: NamePromptProps) {
+  const particle = subjectParticle(characterName);
+
   return (
     <div className="mx-auto mt-10 max-w-[85%] rounded-2xl bg-white px-4 py-4 text-center shadow">
-      <p className="mb-3 text-sm text-gray-700">{characterName}이 널 뭐라고 부르면 좋을까?</p>
+      <p className="mb-3 text-sm text-gray-700">
+        {characterName}
+        {particle} 널 뭐라고 부르면 좋을까?
+      </p>
       <input
         className="mb-3 w-full rounded-full border px-4 py-2 text-center text-sm outline-none focus:border-yellow-400"
         placeholder="이름이나 애칭 (선택)"
