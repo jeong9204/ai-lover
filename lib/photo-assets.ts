@@ -71,7 +71,7 @@ const PHOTO_ASSETS: PhotoAsset[] = [
   },
 ];
 
-const PHOTO_INTENT_PATTERN = /(사진|풍경|하늘|노을|석양|비|창밖|카페|커피|지하철|역|퇴근길|거리|야경|보여줘|보내줘|찍었|찍어)/;
+const PHOTO_REQUEST_PATTERN = /(사진|풍경|하늘|노을|석양|창밖|카페|커피|지하철|역|퇴근길|거리|야경|찍은\s*거|찍어\s*둔\s*거|찍었[던는]?\s*거).{0,16}(보여줘|보내줘|있어|없어|줘|볼래|보고\s*싶|궁금)|(?:보여줘|보내줘|줘|볼래|보고\s*싶|궁금).{0,16}(사진|풍경|하늘|노을|석양|창밖|카페|커피|지하철|역|퇴근길|거리|야경|찍은\s*거|찍어\s*둔\s*거|찍었[던는]?\s*거)/;
 
 function scoreAsset(asset: PhotoAsset, text: string): number {
   return asset.keywords.reduce((score, keyword) => score + (text.includes(keyword) ? 1 : 0), 0);
@@ -109,13 +109,6 @@ function captionFor(asset: PhotoAsset, text: string): string {
   return asset.fallbackCaption;
 }
 
-export function shouldSharePhoto(input: {
-  userMessage: string;
-  dailyState: CharacterDailyState | null;
-}): boolean {
-  return PHOTO_INTENT_PATTERN.test(photoContextText(input.userMessage, input.dailyState));
-}
-
 export function buildPhotoSharePromptHint(photoMessage: ChatMessage | null): string | null {
   if (!photoMessage?.metadata?.photo) return null;
   return [
@@ -134,9 +127,9 @@ export function createPhotoShareMessage(input: {
   dailyState: CharacterDailyState | null;
   timestamp: number;
 }): ChatMessage | null {
-  const text = photoContextText(input.userMessage, input.dailyState);
-  if (!PHOTO_INTENT_PATTERN.test(text)) return null;
+  if (!PHOTO_REQUEST_PATTERN.test(input.userMessage)) return null;
 
+  const text = photoContextText(input.userMessage, input.dailyState);
   const asset = pickPhotoAsset(text);
   return {
     role: "assistant",
