@@ -1,5 +1,6 @@
 interface ChatHeaderProps {
   characterName: string;
+  personaLabel: string;
   relationshipStage: string;
   pushSupported: boolean;
   pushSubscribed: boolean;
@@ -13,6 +14,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({
   characterName,
+  personaLabel,
   relationshipStage,
   pushSupported,
   pushSubscribed,
@@ -52,7 +54,9 @@ export function ChatHeader({
             <span className="text-[10px] font-semibold text-gray-500">DEV</span>
           </>
         )}
-        <p className="text-xs text-gray-600">{relationshipStage}</p>
+        <p className="text-xs text-gray-600">
+          {personaLabel} · {relationshipStage}
+        </p>
       </div>
     </header>
   );

@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
       userName: session.userName,
       characterName: session.characterName,
+      personaType: session.personaType,
       devMode: isDeveloperRequest(req),
     });
   } catch (err) {
@@ -117,7 +118,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   const systemPromptParts = [
     PERSONA_BASE,
-    buildCharacterNameHint(session.characterName),
+    buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
@@ -221,6 +222,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     sessionId: session.id,
     characterName: session.characterName,
+    personaType: session.personaType,
     reply: structured.message,
     event: structured.event,
     mood: mood.state,

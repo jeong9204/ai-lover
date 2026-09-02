@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       sessionId: result.session.id,
       userName: trimmed,
       characterName: result.session.characterName,
+      personaType: result.session.personaType,
       initialMessage,
     });
   } catch (err) {

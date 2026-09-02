@@ -61,7 +61,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
   const systemPromptParts = [
     PERSONA_BASE,
-    buildCharacterNameHint(session.characterName),
+    buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,

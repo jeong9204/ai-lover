@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PERSONA_NAME, isLaughterOnlyMessage } from "@/lib/persona";
+import { PERSONA_NAME, isLaughterOnlyMessage, personaTypeLabel, PersonaType } from "@/lib/persona";
 import { formatCallDuration } from "@/lib/events";
 import { CallOverlay } from "@/components/CallOverlay";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -44,6 +44,7 @@ export default function Home() {
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [characterName, setCharacterName] = useState(PERSONA_NAME);
+  const [personaType, setPersonaType] = useState<PersonaType>("default");
   const [nameSkipped, setNameSkipped] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [nameSubmitting, setNameSubmitting] = useState(false);
@@ -92,6 +93,7 @@ export default function Home() {
       setRelationshipStage(data.relationshipStage ?? "오래된 친구");
       setUserName(data.userName ?? null);
       setCharacterName(data.characterName ?? PERSONA_NAME);
+      setPersonaType(data.personaType ?? "default");
       setDevMode(Boolean(data.devMode));
       setLoadError(null);
     } catch (e) {
@@ -139,6 +141,7 @@ export default function Home() {
       }
       setUserName(data.userName ?? trimmed);
       setCharacterName(data.characterName ?? characterName);
+      setPersonaType(data.personaType ?? personaType);
       if (data.initialMessage) {
         setMessages((prev) => [...prev, data.initialMessage]);
       }
@@ -255,6 +258,7 @@ export default function Home() {
       setNameSkipped(false);
       setUserName(null);
       setCharacterName(PERSONA_NAME);
+      setPersonaType("default");
       setNameInput("");
       setMessages([]);
       setMood("calm");
@@ -287,6 +291,7 @@ export default function Home() {
           setMood(data.mood ?? "calm");
           setRelationshipStage(data.relationshipStage ?? relationshipStage);
           setCharacterName(data.characterName ?? characterName);
+          setPersonaType(data.personaType ?? personaType);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       } catch {
@@ -398,6 +403,7 @@ export default function Home() {
       setMood(data.mood ?? "calm");
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
+      setPersonaType(data.personaType ?? personaType);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
@@ -473,6 +479,7 @@ export default function Home() {
       setMood(data.mood ?? mood);
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
+      setPersonaType(data.personaType ?? personaType);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       if (data.error) setError(data.error);
     } catch (e) {
@@ -492,6 +499,7 @@ export default function Home() {
     <main className="mx-auto flex h-screen max-w-md flex-col bg-[#b2c7da]">
       <ChatHeader
         characterName={characterName}
+        personaLabel={personaTypeLabel(personaType)}
         relationshipStage={relationshipStage}
         pushSupported={pushSupported}
         pushSubscribed={pushSubscribed}

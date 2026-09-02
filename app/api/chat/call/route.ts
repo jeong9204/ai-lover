@@ -80,7 +80,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const dailyStateHint = buildDailyStatePromptHint(await getOrCreateCharacterDailyState(session.id));
   const systemPromptParts = [
     PERSONA_BASE,
-    buildCharacterNameHint(session.characterName),
+    buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
@@ -146,6 +146,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     sessionId: session.id,
     characterName: session.characterName,
+    personaType: session.personaType,
     callEndedMessage,
     replyMessage,
     mood: mood.state,

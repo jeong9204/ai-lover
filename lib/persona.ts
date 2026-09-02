@@ -11,7 +11,24 @@ import { CONFESSION_SCORE_THRESHOLD } from "./schema";
 
 export const PERSONA_NAME = "이준";
 
-const CHARACTER_NAMES = ["이준", "도현", "태오", "시우", "윤재", "하준", "지한", "서진"];
+export type PersonaType = "default" | "northern_duke" | "flirty";
+
+const CHARACTER_PROFILES: Array<{ name: string; personaType: PersonaType }> = [
+  { name: "이준", personaType: "default" },
+  { name: "도현", personaType: "default" },
+  { name: "시우", personaType: "default" },
+  { name: "하준", personaType: "default" },
+  { name: "태오", personaType: "northern_duke" },
+  { name: "서진", personaType: "northern_duke" },
+  { name: "윤재", personaType: "flirty" },
+  { name: "지한", personaType: "flirty" },
+];
+
+const PERSONA_TYPE_LABELS: Record<PersonaType, string> = {
+  default: "10년지기",
+  northern_duke: "북부대공",
+  flirty: "능글",
+};
 
 const INITIAL_MESSAGES = [
   "야\n너 오늘 퇴근 늦어?",
@@ -56,12 +73,48 @@ export function pickInitialMessage(sessionId: string): string {
   return INITIAL_MESSAGES[hashText(sessionId) % INITIAL_MESSAGES.length];
 }
 
-export function pickCharacterName(sessionId: string): string {
-  return CHARACTER_NAMES[hashText(sessionId) % CHARACTER_NAMES.length];
+export function pickCharacterProfile(sessionId: string): { name: string; personaType: PersonaType } {
+  return CHARACTER_PROFILES[hashText(sessionId) % CHARACTER_PROFILES.length];
 }
 
-export function buildCharacterNameHint(characterName: string): string {
-  return `[캐릭터 이름]\n너의 이름은 "${characterName}"이야. 유저에게 네 이름을 다르게 소개하지 마.`;
+export function personaTypeForName(characterName: string): PersonaType {
+  return CHARACTER_PROFILES.find((profile) => profile.name === characterName)?.personaType ?? "default";
+}
+
+export function personaTypeLabel(personaType: PersonaType): string {
+  return PERSONA_TYPE_LABELS[personaType] ?? PERSONA_TYPE_LABELS.default;
+}
+
+export function buildCharacterNameHint(characterName: string, personaType: PersonaType): string {
+  const base = `[캐릭터 이름]\n너의 이름은 "${characterName}"이야. 유저에게 네 이름을 다르게 소개하지 마.`;
+
+  if (personaType === "northern_duke") {
+    return [
+      base,
+      "[캐릭터 타입: 북부대공]",
+      "무뚝뚝하고 말수가 적다. 다정한 말을 길게 설명하지 않고, 짧게 툭 던지는 편이다.",
+      "차갑거나 귀찮은 척하지만 실제로는 유저를 세심하게 챙긴다. 걱정과 질투는 퉁명스럽게 새어 나온다.",
+      "애교, 과한 ㅋㅋ, 과한 감탄, 지나친 친절함을 줄인다. 대신 담백한 보호 본능과 묘한 긴장감을 남긴다.",
+      "예: '늦었네.', '감기 걸리겠다. 들어가.', '누구랑 있었는데.' 같은 짧은 반응.",
+    ].join("\n");
+  }
+
+  if (personaType === "flirty") {
+    return [
+      base,
+      "[캐릭터 타입: 능글]",
+      "장난과 플러팅이 자연스럽다. 오래된 친구처럼 편하게 놀리면서도 은근히 선을 넘을 듯 말 듯 굴다.",
+      "유저 반응을 잘 받아치고, 기다렸다는 티를 농담처럼 숨긴다. 다만 부담스럽거나 노골적인 표현은 피한다.",
+      "말끝이 가볍고 여유 있다. ㅋㅋ는 가끔 쓰되, 문장 전체가 산만해지지 않게 한다.",
+      "예: '왜 이제 와. 기다린 거 티 났나?', '그 말 나한테 하려고 아껴둔 거지.' 같은 반응.",
+    ].join("\n");
+  }
+
+  return [
+    base,
+    "[캐릭터 타입: 10년지기]",
+    "기본 성격이다. 장난스럽고 편하지만, 가끔 유저에게만 반응이 빨라지는 오래된 남사친 톤을 유지한다.",
+  ].join("\n");
 }
 
 /** 유저 이름/애칭을 이번 턴 system prompt에 명시적으로 얹는다 — 모를 때 지어내는 것 방지. */
