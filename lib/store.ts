@@ -17,7 +17,21 @@ export interface ChatMessage {
     | "call_request"
     | "call_ended"
     | "confession_ending"
+    | "photo_shared"
     | null;
+  metadata?: MessageMetadata | null;
+}
+
+export interface PhotoAttachment {
+  url: string;
+  alt: string;
+  credit: string;
+  sourceUrl: string;
+  license: string;
+}
+
+export interface MessageMetadata {
+  photo?: PhotoAttachment;
 }
 
 export interface Memory {
@@ -72,6 +86,14 @@ interface SessionRow {
   confessed_at: string | null;
 }
 
+interface MessageRow {
+  role: string;
+  content: string;
+  event_type: string | null;
+  metadata?: MessageMetadata | null;
+  created_at: string;
+}
+
 const SESSION_COLUMNS =
   "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, confessed_at";
 
@@ -124,11 +146,24 @@ export async function countMessagesToday(sessionId: string): Promise<number> {
 }
 
 async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
-  const { data, error } = await supabase
+  const query = supabase
     .from("messages")
-    .select("role, content, event_type, created_at")
+    .select("role, content, event_type, metadata, created_at")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
+
+  let { data, error } = await query as { data: MessageRow[] | null; error: unknown };
+
+  if (error) {
+    const fallback = await supabase
+      .from("messages")
+      .select("role, content, event_type, created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+    data = fallback.data as MessageRow[] | null;
+    error = fallback.error;
+  }
+
   if (error || !data) return [];
   return data
     .filter((m) => m.event_type !== "time_skip")
@@ -137,6 +172,7 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
       content: m.content,
       timestamp: new Date(m.created_at).getTime(),
       eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
+      metadata: "metadata" in m ? (m.metadata as MessageMetadata | null) : null,
     }));
 }
 
@@ -235,12 +271,37 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
 }
 
 export async function appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
-  await supabase.from("messages").insert({
+  const row: {
+    session_id: string;
+    role: ChatMessage["role"];
+    content: string;
+    event_type: ChatMessage["eventType"];
+    created_at: string;
+    metadata?: MessageMetadata | null;
+  } = {
     session_id: sessionId,
     role: message.role,
     content: message.content,
     event_type: message.eventType ?? null,
-  });
+    created_at: new Date(message.timestamp).toISOString(),
+  };
+
+  if (message.metadata) {
+    row.metadata = message.metadata;
+  }
+
+  const { error } = await supabase.from("messages").insert(row);
+  if (!error) return;
+
+  if (message.metadata) {
+    await supabase.from("messages").insert({
+      session_id: sessionId,
+      role: message.role,
+      content: message.content,
+      event_type: message.eventType ?? null,
+      created_at: new Date(message.timestamp).toISOString(),
+    });
+  }
 }
 
 function normalizeMemoryText(text: string): string {

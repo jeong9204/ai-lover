@@ -22,6 +22,53 @@ export function MessageList({
   bottomRef,
   onStartCall,
 }: MessageListProps) {
+  function renderAssistantBubble(m: Msg, isLatest: boolean) {
+    const photo = m.metadata?.photo;
+
+    return (
+      <div
+        className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow ${
+          m.role === "user" ? "bg-[#fee500] text-gray-900" : "bg-white text-gray-900"
+        }`}
+      >
+        {photo && (
+          <a
+            href={photo.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="-mx-1 mb-2 block overflow-hidden rounded-xl bg-gray-100"
+            aria-label={`${photo.alt} 원본 보기`}
+          >
+            <img
+              src={photo.url}
+              alt={photo.alt}
+              className="aspect-[4/3] max-h-80 w-full object-cover"
+              loading="lazy"
+            />
+          </a>
+        )}
+        <p className="whitespace-pre-wrap break-words">{m.content}</p>
+        {photo && (
+          <p className="mt-1 text-[10px] leading-tight text-gray-400">
+            Photo: {photo.credit}
+          </p>
+        )}
+        {m.eventType === "call_request" &&
+          isLatest &&
+          !activeCall &&
+          !callEnding &&
+          !loading && (
+            <button
+              onClick={onStartCall}
+              className="mt-2 block w-full rounded-full bg-green-500 px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              📞 전화 받기
+            </button>
+          )}
+      </div>
+    );
+  }
+
   return (
     <>
       {messages.map((m, i) => {
@@ -49,31 +96,13 @@ export function MessageList({
                 </div>
                 <div className="flex justify-start self-start">
                   <div className="max-w-[75%] rounded-2xl border border-pink-200 bg-pink-50 px-3 py-2 text-sm text-gray-900 shadow">
-                    {m.content}
+                    <p className="whitespace-pre-wrap break-words">{m.content}</p>
                   </div>
                 </div>
               </div>
             ) : (
               <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow ${
-                    m.role === "user" ? "bg-[#fee500] text-gray-900" : "bg-white text-gray-900"
-                  }`}
-                >
-                  {m.content}
-                  {m.eventType === "call_request" &&
-                    i === messages.length - 1 &&
-                    !activeCall &&
-                    !callEnding &&
-                    !loading && (
-                      <button
-                        onClick={onStartCall}
-                        className="mt-2 block w-full rounded-full bg-green-500 px-3 py-1.5 text-xs font-semibold text-white"
-                      >
-                        📞 전화 받기
-                      </button>
-                    )}
-                </div>
+                {renderAssistantBubble(m, i === messages.length - 1)}
               </div>
             )}
           </Fragment>

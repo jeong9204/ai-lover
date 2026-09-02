@@ -27,6 +27,7 @@ import { recentDeletedMessageHint } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
+import { createPhotoShareMessage } from "@/lib/photo-assets";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -152,6 +153,9 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   // 매 턴 "연인이 됐어요" 배너가 반복되는 걸 막는 서버 쪽 안전장치 (프롬프트만으로는 100% 못 막음).
   const justConfessed = structured.event?.type === "confession_ending" && !session.confessedAt;
 
+  let replyEventType: ChatMessage["eventType"] = null;
+  let photoMessage: ChatMessage | null = null;
+
   if (structured.event?.type === "deleted_message") {
     await appendMessage(session.id, {
       role: "system_event",
@@ -160,12 +164,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       eventType: "deleted_message",
     });
   } else if (structured.message) {
+    replyEventType = structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null;
     await appendMessage(session.id, {
       role: "assistant",
       content: structured.message,
       timestamp: now,
-      eventType: structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null,
+      eventType: replyEventType,
     });
+
+    photoMessage = createPhotoShareMessage({
+      userMessage: message,
+      dailyState,
+      timestamp: now + 1,
+    });
+    if (photoMessage) {
+      await appendMessage(session.id, photoMessage);
+    }
   }
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
@@ -181,7 +195,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     ...(justConfessed ? { confessedAt: now } : {}),
   });
 
-  const replyEventType = structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null;
   const milestones = milestonesFromTurn({
     emotion: structured.emotion,
     eventType: replyEventType ?? structured.event?.type ?? null,
@@ -207,5 +220,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     relationshipStage,
     isJealous,
     devMode,
+    photoMessage,
   });
 }

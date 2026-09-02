@@ -363,8 +363,7 @@ export default function Home() {
           },
         ]);
       } else if (data.reply) {
-        setMessages((prev) => [
-          ...prev,
+        const appended: Msg[] = [
           {
             role: "assistant",
             content: data.reply,
@@ -376,7 +375,17 @@ export default function Home() {
                   ? "confession_ending"
                   : null,
           },
-        ]);
+        ];
+        if (data.photoMessage) {
+          appended.push({
+            role: "assistant",
+            content: data.photoMessage.content,
+            timestamp: Date.now() + 1,
+            eventType: data.photoMessage.eventType ?? "photo_shared",
+            metadata: data.photoMessage.metadata ?? null,
+          });
+        }
+        setMessages((prev) => [...prev, ...appended]);
       }
       setMood(data.mood ?? "calm");
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
