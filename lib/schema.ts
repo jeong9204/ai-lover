@@ -15,7 +15,7 @@ export type Emotion = z.infer<typeof EmotionEnum>;
 
 export const EventSchema = z
   .object({
-    type: z.enum(["deleted_message", "call_request", "confession_ending"]),
+    type: z.enum(["deleted_message", "call_request", "confession_ending", "meetup_request"]),
   })
   .nullable();
 export type ReplyEvent = z.infer<typeof EventSchema>;

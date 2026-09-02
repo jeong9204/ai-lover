@@ -24,6 +24,8 @@ export interface ChatMessage {
     | "call_ended"
     | "confession_ending"
     | "photo_shared"
+    | "meetup_request"
+    | "meetup_completed"
     | null;
   metadata?: MessageMetadata | null;
 }

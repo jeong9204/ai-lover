@@ -24,7 +24,7 @@ import {
 } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
-import { recentDeletedMessageHint } from "@/lib/events";
+import { buildMeetupCompletedLabel, buildMeetupReturnMessage, recentDeletedMessageHint } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
@@ -166,6 +166,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   let replyEventType: ChatMessage["eventType"] = null;
   let photoMessage: ChatMessage | null = null;
+  const extraMessages: ChatMessage[] = [];
 
   if (structured.event?.type === "deleted_message") {
     await appendMessage(session.id, {
@@ -175,7 +176,14 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       eventType: "deleted_message",
     });
   } else if (structured.message) {
-    replyEventType = structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null;
+    replyEventType =
+      structured.event?.type === "call_request"
+        ? "call_request"
+        : structured.event?.type === "meetup_request"
+          ? "meetup_request"
+          : justConfessed
+            ? "confession_ending"
+            : null;
     await appendMessage(session.id, {
       role: "assistant",
       content: structured.message,
@@ -186,6 +194,24 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     photoMessage = pendingPhotoMessage ? { ...pendingPhotoMessage, timestamp: now + 1 } : null;
     if (photoMessage) {
       await appendMessage(session.id, photoMessage);
+    }
+
+    if (replyEventType === "meetup_request") {
+      const meetupCompletedMessage: ChatMessage = {
+        role: "system_event",
+        content: buildMeetupCompletedLabel(),
+        timestamp: now + 2,
+        eventType: "meetup_completed",
+      };
+      const meetupReturnMessage: ChatMessage = {
+        role: "assistant",
+        content: buildMeetupReturnMessage(session.personaType),
+        timestamp: now + 3,
+        eventType: null,
+      };
+      await appendMessage(session.id, meetupCompletedMessage);
+      await appendMessage(session.id, meetupReturnMessage);
+      extraMessages.push(meetupCompletedMessage, meetupReturnMessage);
     }
   }
 
@@ -230,5 +256,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     isJealous,
     devMode,
     photoMessage,
+    extraMessages,
   });
 }

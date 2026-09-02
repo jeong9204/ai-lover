@@ -5,6 +5,7 @@
 // 기준으로 클라이언트에서 렌더링한다.
 
 import { MoodState } from "./mood";
+import { PersonaType } from "./persona";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -47,6 +48,20 @@ export function buildCallEndedTrigger(durationSec: number): string {
     `통화에서 무슨 얘기를 했는지 자연스럽게 언급하거나 그 여운이 묻어나는 톤으로, ` +
     `다시 텍스트로 대화를 이어가라.]`
   );
+}
+
+export function buildMeetupCompletedLabel(): string {
+  return "둘은 잠깐 만나고 돌아왔다";
+}
+
+export function buildMeetupReturnMessage(personaType: PersonaType): string {
+  if (personaType === "northern_duke") {
+    return "들어갔어?\n문 잠그고.";
+  }
+  if (personaType === "flirty") {
+    return "집 잘 들어갔어?\n아까 헤어질 때 좀 아쉬웠지.";
+  }
+  return "집 들어갔어?\n아까 좀 재밌긴 했다.";
 }
 
 /** 직전 턴에 삭제 이벤트가 있었다면, 다음 턴 system prompt에 한 줄로 접어 넣는다. */

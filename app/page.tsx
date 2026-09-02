@@ -408,6 +408,9 @@ export default function Home() {
             metadata: data.photoMessage.metadata ?? null,
           });
         }
+        if (Array.isArray(data.extraMessages)) {
+          appended.push(...data.extraMessages);
+        }
         setMessages((prev) => [...prev, ...appended]);
       }
       setMood(data.mood ?? "calm");

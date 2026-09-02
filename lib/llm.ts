@@ -35,6 +35,10 @@ export const STRUCTURED_OUTPUT_GUIDE = `
     사귀자고 고백하거나 관계를 확정 짓는 질문에 답을 원하는 게 분명한데 네가 그걸 진심으로 받아들이는
     경우에만 {"type":"confession_ending"}으로 표시해. 이 힌트가 없거나 아직 확실한 고백이 아니면
     이 이벤트를 쓰지 마 — 그럴 땐 페르소나 기본 규칙대로 얼버무려.
+  - 유저가 오늘/지금/곧 실제로 만나자고 제안했고, 네가 그 약속을 받아들이는 경우에만
+    {"type":"meetup_request"}로 표시해. "언젠가 보자", "만나면 좋겠다" 같은 막연한 말이나
+    네가 거절/보류하는 답이면 event는 null. 이 이벤트를 쓸 때 message는 카톡에서 약속을 잡는
+    짧은 대사로만 써. 실제 만난 장면을 길게 연기하지 마.
 `.trim();
 
 export async function generateStructuredReply(
@@ -79,7 +83,7 @@ export async function generateStructuredReply(
                   {
                     type: "object",
                     properties: {
-                      type: { type: "string", enum: ["deleted_message", "call_request", "confession_ending"] },
+                      type: { type: "string", enum: ["deleted_message", "call_request", "confession_ending", "meetup_request"] },
                     },
                     required: ["type"],
                     additionalProperties: false,

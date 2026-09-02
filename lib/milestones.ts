@@ -48,6 +48,14 @@ export function milestonesFromTurn(input: {
     });
   }
 
+  if (input.eventType === "meetup_request") {
+    drafts.push({
+      type: "first_meetup",
+      title: "처음 만나러 나간 날",
+      description: "카톡으로 약속을 잡고 잠깐 만나고 돌아왔다.",
+    });
+  }
+
   if (input.eventType === "confession_ending") {
     drafts.push({
       type: "confession_day",
@@ -60,7 +68,7 @@ export function milestonesFromTurn(input: {
     drafts.push({
       type: "first_reconnect_message",
       title: "처음 먼저 연락한 날",
-      description: "네가 말 걸기 전에 이준이 먼저 대화를 이어왔다.",
+      description: "네가 말 걸기 전에 먼저 대화를 이어왔다.",
     });
   }
 
@@ -76,6 +84,6 @@ export function inferMemoryType(input: {
     return "relationship";
   }
 
-  const relationshipWords = ["이준", "우리", "통화", "질투", "서운", "화해", "고백", "어색", "먼저 연락"];
+  const relationshipWords = ["이준", "우리", "통화", "질투", "서운", "화해", "고백", "어색", "먼저 연락", "만나"];
   return relationshipWords.some((word) => input.memory.includes(word)) ? "relationship" : "user";
 }
