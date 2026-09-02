@@ -27,7 +27,7 @@ import { recentDeletedMessageHint } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
-import { createPhotoShareMessage } from "@/lib/photo-assets";
+import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -104,6 +104,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당
   const relevantMemories = pickRelevantMemories(session.memories, message);
   const dailyState = await getOrCreateCharacterDailyState(session.id);
+  const pendingPhotoMessage = createPhotoShareMessage({
+    userMessage: message,
+    dailyState,
+    timestamp: Date.now(),
+  });
 
   const lastMsg = session.messages[session.messages.length - 1];
   const hadRecentDeletedMessage = lastMsg?.role === "system_event" && lastMsg.eventType === "deleted_message";
@@ -127,6 +132,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  const photoShareHint = buildPhotoSharePromptHint(pendingPhotoMessage);
+  if (photoShareHint) systemPromptParts.push(photoShareHint);
 
   const systemPrompt = systemPromptParts.join("\n\n");
 
@@ -172,11 +179,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       eventType: replyEventType,
     });
 
-    photoMessage = createPhotoShareMessage({
-      userMessage: message,
-      dailyState,
-      timestamp: now + 1,
-    });
+    photoMessage = pendingPhotoMessage ? { ...pendingPhotoMessage, timestamp: now + 1 } : null;
     if (photoMessage) {
       await appendMessage(session.id, photoMessage);
     }
