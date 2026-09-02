@@ -35,10 +35,24 @@ export function pickRelevantMemories(memories: Memory[], userMessage: string, ma
 
 export function buildMemoryPromptHint(memories: Memory[]): string {
   if (memories.length === 0) return "";
-  const lines = memories.map((m) => `- ${m.text}`).join("\n");
+  const lines = memories
+    .map((m) => `- ${m.type === "relationship" ? "[둘 사이의 기억]" : "[유저 기억]"} ${m.text}`)
+    .join("\n");
   return `
 너는 유저와의 지난 대화에서 아래 내용들을 기억하고 있어. 자연스러운 타이밍에, 너무 갑작스럽지 않게
 관련 있으면 먼저 물어보거나 언급해줘 (매번 억지로 꺼낼 필요는 없어, 자연스러울 때만):
 ${lines}
 `.trim();
+}
+
+export function pickSpontaneousMemory(memories: Memory[]): Memory | null {
+  const now = Date.now();
+  const recent = memories
+    .filter((m) => now - m.createdAt < 14 * 24 * 60 * 60 * 1000)
+    .sort((a, b) => {
+      const typeBonus = Number(b.type === "relationship") - Number(a.type === "relationship");
+      if (typeBonus !== 0) return typeBonus;
+      return b.createdAt - a.createdAt;
+    });
+  return recent[0] ?? null;
 }

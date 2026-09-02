@@ -7,10 +7,13 @@ import {
   countMessagesToday,
   DAILY_MESSAGE_LIMIT,
   ChatMessage,
+  getOrCreateCharacterDailyState,
+  appendRelationshipMilestone,
 } from "@/lib/store";
 import { computeMood, PresenceContext } from "@/lib/mood";
 import { detectJealousyTrigger, JEALOUSY_PROMPT_HINT, buildEmotionPromptHint } from "@/lib/jealousy";
 import { pickRelevantMemories, buildMemoryPromptHint } from "@/lib/memory";
+import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import {
   PERSONA_BASE,
   buildUserNameHint,
@@ -22,6 +25,8 @@ import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
 import { recentDeletedMessageHint } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
+import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
+import { isDeveloperRequest } from "@/lib/dev-mode";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest) {
     const { session } = result;
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
     const reconnect = await attemptReconnect(session);
-    const extraMessages: ChatMessage[] = [reconnect?.timeSkipMessage, reconnect?.reconnectMessage].filter(
+    const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
     );
 
@@ -53,6 +58,7 @@ export async function GET(req: NextRequest) {
       mood: reconnect?.mood ?? mood.state,
       relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
       userName: session.userName,
+      devMode: isDeveloperRequest(req),
     });
   } catch (err) {
     return NextResponse.json(
@@ -85,7 +91,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   }
   const { session } = result;
 
-  if ((await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+  const devMode = isDeveloperRequest(req);
+  if (!devMode && (await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
     return NextResponse.json(
       { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
       { status: 429 }
@@ -95,6 +102,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const mood = computeMood(session.lastMessageAt, presenceContext(session));
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당
   const relevantMemories = pickRelevantMemories(session.memories, message);
+  const dailyState = await getOrCreateCharacterDailyState(session.id);
 
   const lastMsg = session.messages[session.messages.length - 1];
   const hadRecentDeletedMessage = lastMsg?.role === "system_event" && lastMsg.eventType === "deleted_message";
@@ -116,6 +124,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (isJealous) systemPromptParts.push(`[참고 신호]\n${JEALOUSY_PROMPT_HINT}`);
   const memoryHint = buildMemoryPromptHint(relevantMemories);
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
+  const dailyStateHint = buildDailyStatePromptHint(dailyState);
+  if (dailyStateHint) systemPromptParts.push(dailyStateHint);
 
   const systemPrompt = systemPromptParts.join("\n\n");
 
@@ -171,8 +181,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     ...(justConfessed ? { confessedAt: now } : {}),
   });
 
+  const replyEventType = structured.event?.type === "call_request" ? "call_request" : justConfessed ? "confession_ending" : null;
+  const milestones = milestonesFromTurn({
+    emotion: structured.emotion,
+    eventType: replyEventType ?? structured.event?.type ?? null,
+    userMessage: message,
+    assistantMessage: structured.message,
+  });
+  await Promise.all(milestones.map((milestone) => appendRelationshipMilestone(session.id, milestone)));
+
   if (structured.memory) {
-    await appendMemory(session.id, structured.memory);
+    const memoryType = inferMemoryType({
+      emotion: structured.emotion,
+      eventType: replyEventType ?? structured.event?.type ?? null,
+      memory: structured.memory,
+    });
+    await appendMemory(session.id, structured.memory, memoryType);
   }
 
   return NextResponse.json({
@@ -182,5 +206,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     mood: mood.state,
     relationshipStage,
     isJealous,
+    devMode,
   });
 }

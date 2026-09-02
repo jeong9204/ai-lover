@@ -28,25 +28,29 @@
 
 ```
 app/
-  page.tsx                          카톡 스타일 채팅 UI, 이벤트 렌더링, 알림 구독 UX
+  page.tsx                          카톡 스타일 채팅 UI, 날짜 구분선/이벤트 렌더링, 알림 구독/초기화 UX
   api/chat/route.ts                 GET=세션 부트스트랩/복원+재접속 먼저 말걸기, POST=대화 처리
   api/chat/call/route.ts            "전화하자" 통화 이벤트 처리
   api/session/name/route.ts         유저 이름/애칭 저장
   api/push/subscribe/route.ts       Web Push 구독 저장/삭제
   api/cron/reconnect-check/route.ts 백그라운드 트리거 (탭 닫혀 있어도 푸시)
+components/
+  ChatHeader.tsx / MessageList.tsx / ChatInput.tsx / NamePrompt.tsx / CallOverlay.tsx
 lib/
   persona.ts    페르소나 텍스트 + 이름/웃음소리/고백 힌트 빌더
   mood.ts       Presence — 경과시간 + 직전 대화 분위기 + 관계 단계 → mood
   jealousy.ts   Hidden Emotion — 감정별 서브텍스트 힌트
-  memory.ts     기억 후보 선별(키워드 겹침 + 최근성) + 프롬프트 힌트
-  events.ts     Event — time_skip, 재접속 트리거, 삭제 메시지 힌트
+  memory.ts     기억 후보 선별(키워드 겹침 + 최근성) + User·Relationship Memory 프롬프트 힌트
+  milestones.ts 관계 milestone 후보 생성 + memory type 추론
+  daily-state.ts 하루 하나의 이준 생활 상태 생성 + 프롬프트 힌트
+  events.ts     Event — 재접속 트리거, 삭제 메시지 힌트, 통화 이벤트 라벨
   reconnect.ts  "재접속 시 먼저 말 걸기" 오케스트레이션 (GET/cron 공유)
   schema.ts     Zod 스키마 + 관계 점수→단계 텍스트 매핑 + 고백 임계값
   llm.ts        Anthropic 호출
   push.ts       web-push 래핑
   store.ts      Supabase 세션/메시지/기억/구독 저장
   supabase.ts   서버 전용 클라이언트 (지연 초기화)
-db/migrations/  0001_init ~ 0005_confession
+db/migrations/  0001_init ~ 0006_character_experience
 ```
 
 ## 3. 지금까지 한 일 (git 히스토리 기준)
@@ -59,13 +63,18 @@ db/migrations/  0001_init ~ 0005_confession
 | `262f810` | 모든 API 라우트에 최상위 try/catch 추가 |
 | `1b3c134` | Next.js 14.2.5 → 14.2.35 보안 패치 |
 | `07824f6` | **고백 엔딩 이벤트** — 관계 점수 ≥ 60이면 고백 수용, `confessed_at` 기록, 이후 "연인" 단계 고정 (`0005_confession.sql`) |
+| working tree | **세션 초기화 버튼** — 브라우저의 `session_id`/이름 스킵 상태/푸시 구독을 정리하고 새 세션 부트스트랩 |
+| working tree | **날짜 구분선 개선** — `time_skip` 저장을 중단하고 KST 기준 메시지 timestamp로 날짜 구분선 렌더링 |
+| working tree | **캐릭터 경험 확장 1차** — 초기 선톡, mood UI 숨김, memory dedupe/type, relationship milestone, daily state 기반 선톡 |
+| working tree | **개발자 모드 분리** — `DEV_MODE_SECRET` 기반 리밋 우회, 초기화 버튼 dev 전용 노출 |
 
 그 사이 마이그레이션으로 추가된 기능:
 - `0003_user_name` — 유저 이름/애칭 (`user_name`), 모르면 이름 지어내지 않고 "너"
 - `0004_call_event` — "전화하자" 이벤트 (`call_request` / `call_ended`)
 - `0005_confession` — 고백 엔딩 (`confession_ending` 이벤트, `confessed_at`)
+- `0006_character_experience` — `memory_type`, `relationship_milestones`, `character_daily_states`
 
-**현재 상태**: git clean, `main` 브랜치. 배포 안 됨(로컬 개발 전용).
+**현재 상태**: working tree에 변경 있음, `main` 브랜치. 배포 안 됨(로컬 개발 전용).
 
 ### 관계 단계 (내부 점수 → 텍스트, 숫자는 UI 비노출)
 - `< 20` 오래된 친구 / `≥ 20` 요즘 유독 편해진 친구 / `≥ 40` 친구라고 하기엔 조금 이상한 사이
@@ -79,7 +88,16 @@ db/migrations/  0001_init ~ 0005_confession
 ### 기획문서 Could 항목 중 미구현
 - [ ] "입력하다 멈춤" 이벤트 (실시간 스트리밍/폴링 인프라 필요 → 이번 범위에서 제외됐던 것)
 - [ ] 페르소나 프리셋 (여러 캐릭터 성격)
-- [ ] 세션 초기화 버튼 (UI에서 대화 리셋)
+- [x] 세션 초기화 버튼 (UI에서 대화 리셋)
+- [x] 첫 접속 초기 선톡
+- [x] mood UI 숨김
+- [x] Memory 중복 저장 방지
+- [x] 관계 milestone 최소 구조
+- [x] Relationship Memory 타입
+- [x] Character Daily State 최소 구조
+- [x] Daily State / Memory / Presence 기반 선톡 다양화 1차
+- [x] `page.tsx` 렌더 컴포넌트 분리 1차
+- [x] 회원가입 없는 개발자 모드 (`/?dev=secret`, `/?dev=off`)
 - [ ] 여러 기기 이어하기 (현재는 localStorage session_id라 기기 간 불가)
 - [ ] 추가 관계 시나리오
 
@@ -110,3 +128,4 @@ npm run cron                  # (선택) 백그라운드 푸시 테스트용
 ```
 
 Presence 테스트: Supabase `sessions` 테이블에서 `last_active_at`을 과거로 수정 후 새로고침.
+개발자 모드: `.env.local`의 `DEV_MODE_SECRET` 설정 후 `/?dev=secret`으로 진입, 해제는 `/?dev=off`.

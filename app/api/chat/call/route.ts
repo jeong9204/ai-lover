@@ -10,6 +10,9 @@ import {
   countMessagesToday,
   DAILY_MESSAGE_LIMIT,
   ChatMessage,
+  getOrCreateCharacterDailyState,
+  appendRelationshipMilestone,
+  appendMemory,
 } from "@/lib/store";
 import { computeMood } from "@/lib/mood";
 import { buildEmotionPromptHint } from "@/lib/jealousy";
@@ -17,6 +20,9 @@ import { PERSONA_BASE, buildUserNameHint } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion } from "@/lib/schema";
 import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
+import { buildDailyStatePromptHint } from "@/lib/daily-state";
+import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
+import { isDeveloperRequest } from "@/lib/dev-mode";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -45,7 +51,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   }
   const { session } = result;
 
-  if ((await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+  const devMode = isDeveloperRequest(req);
+  if (!devMode && (await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
     return NextResponse.json(
       { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
       { status: 429 }
@@ -60,12 +67,17 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     eventType: "call_ended",
   };
   await appendMessage(session.id, callEndedMessage);
+  await appendRelationshipMilestone(
+    session.id,
+    milestonesFromTurn({ emotion: session.emotion as Emotion, eventType: "call_ended", durationSec: clampedDuration })[0]
+  );
 
   const mood = computeMood(session.lastMessageAt, {
     lastConversationMood: session.lastConversationMood,
     relationshipStage: session.relationshipStage,
   });
   const emotionHint = buildEmotionPromptHint(session.emotion as Emotion, session.emotionIntensity);
+  const dailyStateHint = buildDailyStatePromptHint(await getOrCreateCharacterDailyState(session.id));
   const systemPromptParts = [
     PERSONA_BASE,
     buildUserNameHint(session.userName),
@@ -73,6 +85,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     STRUCTURED_OUTPUT_GUIDE,
   ];
   if (emotionHint) systemPromptParts.push(emotionHint);
+  if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const history: LLMMessage[] = session.messages
@@ -102,6 +115,22 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     await appendMessage(session.id, replyMessage);
   }
 
+  const replyEventType = replyMessage?.eventType ?? null;
+  const milestones = milestonesFromTurn({
+    emotion: structured.emotion,
+    eventType: replyEventType,
+    assistantMessage: structured.message,
+  });
+  await Promise.all(milestones.map((milestone) => appendRelationshipMilestone(session.id, milestone)));
+
+  if (structured.memory) {
+    await appendMemory(
+      session.id,
+      structured.memory,
+      inferMemoryType({ emotion: structured.emotion, eventType: replyEventType, memory: structured.memory })
+    );
+  }
+
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage = stageForScore(relationshipScore);
   await updateSession(session.id, {
@@ -119,5 +148,6 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     replyMessage,
     mood: mood.state,
     relationshipStage,
+    devMode,
   });
 }

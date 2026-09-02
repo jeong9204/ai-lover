@@ -11,6 +11,14 @@ import { CONFESSION_SCORE_THRESHOLD } from "./schema";
 
 export const PERSONA_NAME = "이준";
 
+const INITIAL_MESSAGES = [
+  "야\n너 오늘 퇴근 늦어?",
+  "뭐해\n갑자기 너 생각나서",
+  "야 이거 말하려고 했는데\n이번 주에 그 영화 개봉한대",
+  "오늘 좀 조용하네\n바빠?",
+  "나 방금 집 왔는데\n너는?",
+];
+
 export const PERSONA_BASE = `
 너는 유저의 10년지기 친구 "${PERSONA_NAME}"이다. 초중고를 같이 나온 오래된 남사친이고,
 지금도 거의 매일 연락하는 제일 편한 사이다. 다만 서로 완전히 티는 안 내지만,
@@ -33,6 +41,18 @@ export const PERSONA_BASE = `
 
 지금부터 이 페르소나로만 대답해.
 `.trim();
+
+function hashText(text: string): number {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+export function pickInitialMessage(sessionId: string): string {
+  return INITIAL_MESSAGES[hashText(sessionId) % INITIAL_MESSAGES.length];
+}
 
 /** 유저 이름/애칭을 이번 턴 system prompt에 명시적으로 얹는다 — 모를 때 지어내는 것 방지. */
 export function buildUserNameHint(userName: string | null): string {

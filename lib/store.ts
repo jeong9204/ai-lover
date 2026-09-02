@@ -1,7 +1,11 @@
 // Supabase 기반 세션 저장소. 익명 session_id로 식별하며 로그인은 없다.
-// sessions / messages / memories 3테이블 구조는 db/migrations/0001_init.sql 참고.
+// sessions / messages / memories 중심의 저장소. 추가 관계 경험 테이블은 0006 migration 참고.
 
 import { supabase } from "./supabase";
+import { createCharacterDailyState } from "./daily-state";
+import { koreanDateKey } from "./korean-date";
+import { MilestoneDraft } from "./milestones";
+import { pickInitialMessage } from "./persona";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
@@ -9,7 +13,6 @@ export interface ChatMessage {
   timestamp: number;
   eventType?:
     | "deleted_message"
-    | "time_skip"
     | "reconnect_first_message"
     | "call_request"
     | "call_ended"
@@ -20,15 +23,33 @@ export interface ChatMessage {
 export interface Memory {
   id: string;
   text: string;
+  type: "user" | "relationship";
   createdAt: number;
   lastMentionedAt: number | null;
   importance: number;
+}
+
+export interface Milestone {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  createdAt: number;
+}
+
+export interface CharacterDailyState {
+  dateKey: string;
+  mood: string;
+  event: string | null;
+  thoughtAboutUser: string | null;
+  createdAt: number;
 }
 
 export interface SessionData {
   id: string;
   messages: ChatMessage[];
   memories: Memory[];
+  milestones: Milestone[];
   lastMessageAt: number | null;
   relationshipStage: string;
   relationshipScore: number;
@@ -58,11 +79,17 @@ export type SessionResult =
   | { status: "ok"; session: SessionData; isNew: boolean }
   | { status: "error" };
 
-function rowToSessionData(row: SessionRow, messages: ChatMessage[], memories: Memory[]): SessionData {
+function rowToSessionData(
+  row: SessionRow,
+  messages: ChatMessage[],
+  memories: Memory[],
+  milestones: Milestone[]
+): SessionData {
   return {
     id: row.id,
     messages,
     memories,
+    milestones,
     lastMessageAt: row.last_active_at ? new Date(row.last_active_at).getTime() : null,
     relationshipStage: row.relationship_stage,
     relationshipScore: row.relationship_score,
@@ -103,27 +130,61 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
   if (error || !data) return [];
-  return data.map((m) => ({
-    role: m.role as ChatMessage["role"],
-    content: m.content,
-    timestamp: new Date(m.created_at).getTime(),
-    eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
-  }));
+  return data
+    .filter((m) => m.event_type !== "time_skip")
+    .map((m) => ({
+      role: m.role as ChatMessage["role"],
+      content: m.content,
+      timestamp: new Date(m.created_at).getTime(),
+      eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
+    }));
 }
 
 async function loadMemories(sessionId: string): Promise<Memory[]> {
   const { data, error } = await supabase
     .from("memories")
-    .select("id, content, importance, created_at, last_used_at")
+    .select("id, content, memory_type, importance, created_at, last_used_at")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+  if (error || !data) {
+    const fallback = await supabase
+      .from("memories")
+      .select("id, content, importance, created_at, last_used_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+    if (fallback.error || !fallback.data) return [];
+    return fallback.data.map((m) => ({
+      id: String(m.id),
+      text: m.content,
+      type: "user",
+      createdAt: new Date(m.created_at).getTime(),
+      lastMentionedAt: m.last_used_at ? new Date(m.last_used_at).getTime() : null,
+      importance: Number(m.importance),
+    }));
+  }
+  return data.map((m) => ({
+    id: String(m.id),
+    text: m.content,
+    type: ((m.memory_type as Memory["type"] | null) ?? "user"),
+    createdAt: new Date(m.created_at).getTime(),
+    lastMentionedAt: m.last_used_at ? new Date(m.last_used_at).getTime() : null,
+    importance: Number(m.importance),
+  }));
+}
+
+async function loadMilestones(sessionId: string): Promise<Milestone[]> {
+  const { data, error } = await supabase
+    .from("relationship_milestones")
+    .select("id, type, title, description, created_at")
     .eq("session_id", sessionId)
     .order("created_at", { ascending: true });
   if (error || !data) return [];
   return data.map((m) => ({
     id: String(m.id),
-    text: m.content,
+    type: m.type,
+    title: m.title,
+    description: m.description,
     createdAt: new Date(m.created_at).getTime(),
-    lastMentionedAt: m.last_used_at ? new Date(m.last_used_at).getTime() : null,
-    importance: Number(m.importance),
   }));
 }
 
@@ -145,8 +206,12 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
 
     if (data) {
       const row = data as SessionRow;
-      const [messages, memories] = await Promise.all([loadMessages(row.id), loadMemories(row.id)]);
-      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories) };
+      const [messages, memories, milestones] = await Promise.all([
+        loadMessages(row.id),
+        loadMemories(row.id),
+        loadMilestones(row.id),
+      ]);
+      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones) };
     }
     // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
   }
@@ -158,7 +223,15 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
     .single();
 
   if (error || !data) return { status: "error" };
-  return { status: "ok", isNew: true, session: rowToSessionData(data as SessionRow, [], []) };
+  const row = data as SessionRow;
+  const initialMessage: ChatMessage = {
+    role: "assistant",
+    content: pickInitialMessage(row.id),
+    timestamp: Date.now(),
+    eventType: null,
+  };
+  await appendMessage(row.id, initialMessage);
+  return { status: "ok", isNew: true, session: rowToSessionData(row, [initialMessage], [], []) };
 }
 
 export async function appendMessage(sessionId: string, message: ChatMessage): Promise<void> {
@@ -170,19 +243,141 @@ export async function appendMessage(sessionId: string, message: ChatMessage): Pr
   });
 }
 
-export async function appendMemory(sessionId: string, text: string, importance = 0.5): Promise<Memory> {
-  const { data } = await supabase
+function normalizeMemoryText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenOverlapRatio(a: string, b: string): number {
+  const aTokens = new Set(normalizeMemoryText(a).split(" ").filter(Boolean));
+  const bTokens = new Set(normalizeMemoryText(b).split(" ").filter(Boolean));
+  if (aTokens.size === 0 || bTokens.size === 0) return 0;
+  const overlap = [...aTokens].filter((token) => bTokens.has(token)).length;
+  return overlap / Math.min(aTokens.size, bTokens.size);
+}
+
+async function hasDuplicateMemory(sessionId: string, text: string): Promise<boolean> {
+  const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
     .from("memories")
-    .insert({ session_id: sessionId, content: text, importance })
-    .select("id, content, importance, created_at, last_used_at")
+    .select("content, created_at")
+    .eq("session_id", sessionId)
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error || !data) return false;
+
+  const normalized = normalizeMemoryText(text);
+  return data.some((m) => {
+    const existing = normalizeMemoryText(m.content);
+    return existing === normalized || tokenOverlapRatio(existing, normalized) >= 0.8;
+  });
+}
+
+export async function appendMemory(
+  sessionId: string,
+  text: string,
+  type: Memory["type"] = "user",
+  importance = 0.5
+): Promise<Memory | null> {
+  if (await hasDuplicateMemory(sessionId, text)) return null;
+
+  const { data, error } = await supabase
+    .from("memories")
+    .insert({ session_id: sessionId, content: text, memory_type: type, importance })
+    .select("id, content, memory_type, importance, created_at, last_used_at")
     .single();
+
+  if (error) {
+    const fallback = await supabase
+      .from("memories")
+      .insert({ session_id: sessionId, content: text, importance })
+      .select("id, content, importance, created_at, last_used_at")
+      .single();
+    if (fallback.error) return null;
+    return {
+      id: String(fallback.data?.id ?? ""),
+      text,
+      type: "user",
+      createdAt: fallback.data?.created_at ? new Date(fallback.data.created_at).getTime() : Date.now(),
+      lastMentionedAt: null,
+      importance,
+    };
+  }
 
   return {
     id: String(data?.id ?? ""),
     text,
+    type: ((data?.memory_type as Memory["type"] | null) ?? type),
     createdAt: data?.created_at ? new Date(data.created_at).getTime() : Date.now(),
     lastMentionedAt: null,
     importance,
+  };
+}
+
+export async function appendRelationshipMilestone(
+  sessionId: string,
+  milestone: MilestoneDraft | undefined
+): Promise<void> {
+  if (!milestone) return;
+  await supabase
+    .from("relationship_milestones")
+    .upsert(
+      {
+        session_id: sessionId,
+        type: milestone.type,
+        title: milestone.title,
+        description: milestone.description ?? null,
+      },
+      { onConflict: "session_id,type", ignoreDuplicates: true }
+    );
+}
+
+export async function getOrCreateCharacterDailyState(sessionId: string): Promise<CharacterDailyState | null> {
+  const dateKey = koreanDateKey();
+  const { data, error } = await supabase
+    .from("character_daily_states")
+    .select("date_key, mood, event, thought_about_user, created_at")
+    .eq("session_id", sessionId)
+    .eq("date_key", dateKey)
+    .maybeSingle();
+
+  if (!error && data) {
+    return {
+      dateKey: data.date_key,
+      mood: data.mood,
+      event: data.event,
+      thoughtAboutUser: data.thought_about_user,
+      createdAt: new Date(data.created_at).getTime(),
+    };
+  }
+
+  if (error && !String(error.message ?? "").includes("does not exist")) return null;
+
+  const state = createCharacterDailyState(sessionId, dateKey);
+  const saved = await supabase
+    .from("character_daily_states")
+    .insert({
+      session_id: sessionId,
+      date_key: state.dateKey,
+      mood: state.mood,
+      event: state.event,
+      thought_about_user: state.thoughtAboutUser,
+    })
+    .select("date_key, mood, event, thought_about_user, created_at")
+    .single();
+
+  if (saved.error || !saved.data) return state;
+  return {
+    dateKey: saved.data.date_key,
+    mood: saved.data.mood,
+    event: saved.data.event,
+    thoughtAboutUser: saved.data.thought_about_user,
+    createdAt: new Date(saved.data.created_at).getTime(),
   };
 }
 

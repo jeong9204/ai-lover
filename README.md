@@ -8,17 +8,21 @@
 
 ```
 app/
-  page.tsx                     카톡 스타일 채팅 UI — session_id 헤더 전송, 이벤트 렌더링, 알림 구독 UX
+  page.tsx                     카톡 스타일 채팅 UI — session_id 헤더 전송, 날짜 구분선/이벤트 렌더링, 알림 구독/초기화 UX
   layout.tsx                    메타데이터
   api/chat/route.ts            대화 처리 API — 세션 부트스트랩, Presence/Hidden Emotion/Memory/Event 조합
   api/push/subscribe/route.ts  브라우저 Web Push 구독 저장/삭제
   api/cron/reconnect-check/route.ts  백그라운드 트리거 — 탭이 닫혀 있어도 푸시 알림 발송
+components/
+  ChatHeader.tsx / MessageList.tsx / ChatInput.tsx / NamePrompt.tsx / CallOverlay.tsx
 lib/
   persona.ts    캐릭터 페르소나 (10년지기 친구, 성격/말투 정의)
   mood.ts       Presence — 경과 시간 + 직전 대화 분위기 + 관계 단계 → mood 계산
   jealousy.ts   Hidden Emotion — 감정별 서브텍스트 힌트 + 키워드 보조 신호
-  memory.ts     기억 후보 선별(키워드 겹침 + 최근성) / 프롬프트 힌트 생성
-  events.ts     Event — time_skip 계산, 재접속 트리거, 삭제 메시지 힌트
+  memory.ts     기억 후보 선별(키워드 겹침 + 최근성) / User·Relationship Memory 프롬프트 힌트 생성
+  milestones.ts 관계 milestone 후보 생성 + memory type 추론
+  daily-state.ts 하루 하나의 이준 생활 상태 생성 + 프롬프트 힌트 생성
+  events.ts     Event — 재접속 트리거, 삭제 메시지 힌트, 통화 이벤트 라벨
   reconnect.ts  "재접속 시 먼저 말 걸기" 오케스트레이션 — GET /api/chat과 cron이 공유
   schema.ts     Zod 스키마(구조화 출력 검증) + 관계 점수 → 관계 단계 텍스트 매핑
   llm.ts        Anthropic API 호출 (fetch + tool_choice 강제, SDK 의존성 없음)
@@ -27,7 +31,7 @@ lib/
   supabase.ts   서버 전용 Supabase 클라이언트 (service_role, 클라이언트 컴포넌트에서 import 금지)
 public/sw.js    Service Worker — push 이벤트 수신 시 알림 표시
 scripts/reconnect-cron.mjs   로컬 개발용 트리거 스크립트 (npm run cron)
-db/migrations/  Supabase 스키마 (0001_init.sql, 0002_push_subscriptions.sql)
+db/migrations/  Supabase 스키마 (0001_init.sql ~ 0006_character_experience.sql)
 ```
 
 `lib/` 아래 로직은 Next.js에 종속되지 않도록 순수 함수 위주로 작성했습니다.
@@ -43,11 +47,13 @@ cp .env.example .env.local
 
 - `ANTHROPIC_API_KEY`
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase 프로젝트가 없다면 [supabase.com](https://supabase.com)에서
-  무료로 새로 만든 뒤, SQL Editor에서 `db/migrations/0001_init.sql`과 `0002_push_subscriptions.sql`을 순서대로
+  무료로 새로 만든 뒤, SQL Editor에서 `db/migrations/*.sql`을 파일 번호 순서대로
   실행하세요. Project URL과 **service_role** 키(⚠️ `anon` 키 아님)는 Settings → API에서 확인합니다.
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — `npx web-push generate-vapid-keys`로 생성
 - `VAPID_SUBJECT` — `mailto:본인이메일` 형식이면 아무 값이나 가능
 - `CRON_SECRET` — 임의의 비밀 문자열 (`openssl rand -hex 24` 등)
+- `DEV_MODE_SECRET` — 개발자 모드 진입용 비밀 문자열. `/?dev=이값`으로 접속하면 이 브라우저에서
+  리밋 우회/개발용 UI가 켜지고, `/?dev=off`로 끌 수 있습니다.
 
 ```bash
 npm run dev
@@ -82,16 +88,33 @@ npm run cron
 
 ## 데모 시나리오 재현 방법
 
-1. "내일 회사 동기랑 영화 보기로 했어ㅋㅋ" 같은 메시지를 보내 질투 반응(Hidden Emotion)과 메시지 삭제
+1. 새 세션으로 처음 들어가면 빈 챗봇 화면 대신 이준이 먼저 보내둔 메시지로 시작합니다.
+2. "내일 회사 동기랑 영화 보기로 했어ㅋㅋ" 같은 메시지를 보내 질투 반응(Hidden Emotion)과 메시지 삭제
    이벤트가 나오는지 확인합니다. (매 턴 LLM이 자율적으로 판단하므로 한 번에 안 나올 수 있습니다.)
-2. Presence를 실제로 몇 시간 기다리지 않고 테스트하려면, Supabase 대시보드의 `sessions` 테이블에서
-   해당 세션의 `last_active_at`을 과거 시각으로 수동으로 바꾼 뒤 새로고침해 보세요. `time_skip` 구분선과
-   재접속 먼저 말걸기(`reconnect_first_message`)가 함께 나타납니다. 탭을 열어둔 채 기다리면(20초 간격
-   폴링) 새로고침 없이도 같은 일이 일어납니다.
-3. 대화 중 "그 영화 보고 싶었는데" 같은 말을 흘려두고, 나중에 질투 상황을 만들어보면 캐릭터가 그
-   기억을 지금 감정과 연결해서 꺼내는지 확인할 수 있습니다.
-4. 새로고침하거나 브라우저를 완전히 껐다 켜도 이전 대화/감정/관계 단계가 그대로 복원됩니다
+3. Presence를 실제로 몇 시간 기다리지 않고 테스트하려면, Supabase 대시보드의 `sessions` 테이블에서
+   해당 세션의 `last_active_at`을 과거 시각으로 수동으로 바꾼 뒤 새로고침해 보세요.
+   재접속 먼저 말걸기(`reconnect_first_message`)가 나타납니다. 탭을 열어둔 채 기다리면(20초 간격
+   폴링) 새로고침 없이도 같은 일이 일어납니다. 날짜가 바뀐 경우 구분선은 저장 이벤트가 아니라
+   실제 메시지 timestamp 기준으로 화면에서만 표시됩니다.
+4. 대화 중 "그 영화 보고 싶었는데" 같은 말을 흘려두고, 나중에 질투 상황을 만들어보면 캐릭터가 그
+   기억을 지금 감정과 연결해서 꺼내는지 확인할 수 있습니다. 같은 기억은 간단한 중복 검사로 반복 저장을 줄입니다.
+5. 질투/어색함/전화/고백/첫 선톡 같은 중요한 순간은 `relationship_milestones`에 중복 없이 기록됩니다.
+6. 새로고침하거나 브라우저를 완전히 껐다 켜도 이전 대화/감정/관계 단계가 그대로 복원됩니다
    (`localStorage`의 `session_id` + Supabase 저장 덕분).
+7. 개발자 모드에서만 보이는 "초기화"를 누르면 현재 브라우저의 익명 세션/이름 선택/푸시 구독을
+   정리하고 새 대화를 시작합니다. 과거 Supabase 데이터는 데모 안전을 위해 서버에서 삭제하지 않습니다.
+
+## 개발자 모드
+
+회원가입 없이 개인 테스트용 리밋 우회와 개발용 UI를 켤 수 있습니다.
+
+1. `.env.local`에 `DEV_MODE_SECRET`을 설정합니다.
+2. 브라우저에서 `http://localhost:3000/?dev=DEV_MODE_SECRET값`으로 접속합니다.
+3. URL의 `dev` 파라미터는 바로 지워지고, token은 이 브라우저의 localStorage에 저장됩니다.
+4. 서버가 매 요청의 `x-dev-secret`을 검증해 맞을 때만 하루 메시지 제한을 우회합니다.
+5. 개발자 모드를 끄려면 `http://localhost:3000/?dev=off`로 접속합니다.
+
+일반 유저 화면에서는 초기화 버튼과 내부 mood가 보이지 않습니다.
 
 ## 알려진 한계 / 의도적으로 타협한 부분
 

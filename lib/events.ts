@@ -1,27 +1,12 @@
 // Event 로직 — 대사가 아니라 "행동"으로 관계가 이어지고 있다는 걸 보여주는 장치.
 // deleted_message는 매 턴 LLM 구조화 출력의 event 필드로 이미 판단된다 (route.ts POST에서 처리).
-// 여기서는 그 외 두 가지를 다룬다:
-// - time_skip: LLM 호출 없이 순수 계산으로 만드는 "N분/N시간 후" 구분선.
-// - reconnect_first_message: 재접속 시 캐릭터가 먼저 말 걸지 판단하고, 그 트리거를 만든다.
-// 두 이벤트 모두 한 번 발생시키면 last_active_at이 "지금"으로 갱신되므로, 바로 다음 재접속에서는
-// 경과 시간이 다시 0에 가까워져 자연스럽게 중복 삽입을 막는다 (별도 플래그 불필요).
-// 단, 이 갱신은 실제로 뭔가 보여줄 게 있을 때만 일어나야 한다 — reconnect.ts가 claimReconnectSlot을
-// "표시할 이벤트가 있다고 판단한 뒤에만" 호출하는 이유가 이것이다. 매 폴링마다 무조건 갱신해버리면
-// 탭을 열어두고 자리를 비운 사이에도 경과 시간이 계속 리셋돼서 이 카드가 영영 안 뜬다.
+// 여기서는 재접속 시 캐릭터가 먼저 말 걸지 판단하고, 그 트리거를 만든다.
+// 경과 시간 자체는 Presence/mood 계산에만 쓰고, 화면의 날짜 구분은 실제 메시지 timestamp를
+// 기준으로 클라이언트에서 렌더링한다.
 
 import { MoodState } from "./mood";
 
-const MINUTE = 60 * 1000;
-const HOUR = 60 * MINUTE;
-const TIME_SKIP_THRESHOLD_MINUTES = 5;
-
-/** 마지막 메시지로부터 충분히 지났으면(5분+) "N분 후"/"N시간 후" 구분선 카드 텍스트를 만든다. */
-export function buildTimeSkipCard(elapsedMs: number): string | null {
-  const minutes = Math.floor(elapsedMs / MINUTE);
-  if (minutes < TIME_SKIP_THRESHOLD_MINUTES) return null;
-  if (minutes < 60) return `${minutes}분 후`;
-  return `${Math.floor(minutes / 60)}시간 후`;
-}
+const HOUR = 60 * 60 * 1000;
 
 /** Presence 상태가 평온(calm)이 아니면 캐릭터가 먼저 말 걸 조건이 충족된다. */
 export function shouldSendReconnectMessage(moodState: MoodState): boolean {
