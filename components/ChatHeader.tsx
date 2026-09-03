@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   devMode: boolean;
   onTogglePushSubscription: () => void;
   onResetSession: () => void;
+  onOpenProfile: () => void;
 }
 
 export function ChatHeader({
@@ -29,11 +30,18 @@ export function ChatHeader({
   devMode,
   onTogglePushSubscription,
   onResetSession,
+  onOpenProfile,
 }: ChatHeaderProps) {
   return (
     <header className="flex items-center justify-between bg-[#9db8ce] px-4 py-3 shadow">
       <div className="flex items-center gap-2">
-        <CharacterAvatar characterName={characterName} personaType={personaType} size="sm" />
+        <CharacterAvatar
+          characterName={characterName}
+          personaType={personaType}
+          size="sm"
+          interactive
+          onClick={onOpenProfile}
+        />
         <h1 className="text-lg font-bold text-gray-800">{characterName}</h1>
       </div>
       <div className="flex items-center gap-2">

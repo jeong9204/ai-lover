@@ -9,13 +9,13 @@
 
 ```
 app/
-  page.tsx                     카톡 스타일 채팅 UI — session_id 헤더 전송, 날짜/사진/통화/만남 이벤트 렌더링
+  page.tsx                     카톡 스타일 채팅 UI — session_id 헤더 전송, 날짜/사진/통화/만남/프로필 렌더링
   layout.tsx                    메타데이터
   api/chat/route.ts            대화 처리 API — 세션 부트스트랩, Presence/Hidden Emotion/Memory/Event 조합
   api/push/subscribe/route.ts  브라우저 Web Push 구독 저장/삭제
   api/cron/reconnect-check/route.ts  백그라운드 트리거 — 탭이 닫혀 있어도 푸시 알림 발송
 components/
-  ChatHeader.tsx / MessageList.tsx / ChatInput.tsx / NamePrompt.tsx / CallOverlay.tsx
+  ChatHeader.tsx / MessageList.tsx / ChatInput.tsx / NamePrompt.tsx / CallOverlay.tsx / CharacterProfileModal.tsx
 lib/
   persona.ts    캐릭터 이름/페르소나 타입(10년지기/북부대공/능글)과 말투 프롬프트 정의
   mood.ts       Presence — 경과 시간 + 직전 대화 분위기 + 관계 단계 → mood 계산
@@ -23,6 +23,7 @@ lib/
   memory.ts     기억 후보 선별(키워드 겹침 + 최근성) / User·Relationship Memory 프롬프트 힌트 생성
   milestones.ts 관계 milestone 후보 생성 + memory type 추론
   daily-state.ts 하루 하나의 캐릭터 생활 상태 생성 + 프롬프트 힌트 생성
+  profile-status.ts 프로필 모달용 상태 메시지/오늘 상태 문구 생성
   events.ts     Event — 재접속 트리거, 삭제 메시지 힌트, 통화/만남 이벤트 라벨
   photo-assets.ts  Pexels 기반 사진 메시지 후보와 사진 전송 트리거
   reconnect.ts  "재접속 시 먼저 말 걸기" 오케스트레이션 — GET /api/chat과 cron이 공유
@@ -115,6 +116,8 @@ npm run cron
    (`localStorage`의 `session_id` + Supabase 저장 덕분).
 9. 개발자 모드에서만 보이는 "초기화"를 누르면 현재 브라우저의 익명 세션/이름 선택/푸시 구독을
    정리하고 새 대화를 시작합니다. 과거 Supabase 데이터는 데모 안전을 위해 서버에서 삭제하지 않습니다.
+10. 헤더나 상대 메시지 옆 프로필 썸네일을 누르면, 캐릭터 이름/타입/관계 단계와 오늘의 상태 메시지를
+   작은 프로필 모달에서 확인할 수 있습니다.
 
 ## 개발자 모드
 

@@ -6,9 +6,11 @@ import { formatCallDuration } from "@/lib/events";
 import { CallOverlay } from "@/components/CallOverlay";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
+import { CharacterProfileModal } from "@/components/CharacterProfileModal";
 import { MessageList } from "@/components/MessageList";
 import { NamePrompt } from "@/components/NamePrompt";
 import { Msg } from "@/components/chat-types";
+import type { CharacterDailyState } from "@/lib/store";
 
 const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
@@ -54,6 +56,8 @@ export default function Home() {
   const [laughterGateOpen, setLaughterGateOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [devMode, setDevMode] = useState(false);
+  const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -104,6 +108,7 @@ export default function Home() {
       setUserName(data.userName ?? null);
       setCharacterName(data.characterName ?? PERSONA_NAME);
       setPersonaType(data.personaType ?? "default");
+      setDailyState(data.dailyState ?? null);
       setDevMode(Boolean(data.devMode));
       setLoadError(null);
     } catch (e) {
@@ -152,6 +157,7 @@ export default function Home() {
       setUserName(data.userName ?? trimmed);
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
+      setDailyState(data.dailyState ?? dailyState);
       if (data.initialMessage) {
         setMessages((prev) => [...prev, data.initialMessage]);
       }
@@ -269,6 +275,8 @@ export default function Home() {
       setUserName(null);
       setCharacterName(PERSONA_NAME);
       setPersonaType("default");
+      setDailyState(null);
+      setProfileOpen(false);
       setNameInput("");
       setMessages([]);
       setMood("calm");
@@ -302,6 +310,7 @@ export default function Home() {
           setRelationshipStage(data.relationshipStage ?? relationshipStage);
           setCharacterName(data.characterName ?? characterName);
           setPersonaType(data.personaType ?? personaType);
+          setDailyState(data.dailyState ?? dailyState);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       } catch {
@@ -417,6 +426,7 @@ export default function Home() {
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
+      setDailyState(data.dailyState ?? dailyState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
@@ -493,6 +503,7 @@ export default function Home() {
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
+      setDailyState(data.dailyState ?? dailyState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       if (data.error) setError(data.error);
     } catch (e) {
@@ -524,6 +535,7 @@ export default function Home() {
         devMode={devMode}
         onTogglePushSubscription={togglePushSubscription}
         onResetSession={resetSession}
+        onOpenProfile={() => setProfileOpen(true)}
       />
 
       {pushStatus && (
@@ -556,6 +568,7 @@ export default function Home() {
           error={error}
           bottomRef={bottomRef}
           onStartCall={startCall}
+          onOpenProfile={() => setProfileOpen(true)}
         />
       </section>
 
@@ -575,6 +588,17 @@ export default function Home() {
         callSeconds={callSeconds}
         characterName={characterName}
         onEndCall={endCall}
+      />
+
+      <CharacterProfileModal
+        open={profileOpen}
+        characterName={characterName}
+        personaType={personaType}
+        personaLabel={personaTypeLabel(personaType)}
+        relationshipStage={relationshipStage}
+        mood={mood}
+        dailyState={dailyState}
+        onClose={() => setProfileOpen(false)}
       />
     </main>
   );

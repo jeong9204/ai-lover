@@ -3,7 +3,9 @@ import type { PersonaType } from "@/lib/persona";
 interface CharacterAvatarProps {
   characterName: string;
   personaType: PersonaType;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
+  interactive?: boolean;
+  onClick?: () => void;
 }
 
 const AVATAR_STYLE: Record<PersonaType, string> = {
@@ -12,14 +14,31 @@ const AVATAR_STYLE: Record<PersonaType, string> = {
   flirty: "bg-gradient-to-br from-rose-100 via-white to-amber-100 text-rose-700",
 };
 
-export function CharacterAvatar({ characterName, personaType, size = "md" }: CharacterAvatarProps) {
+export function CharacterAvatar({
+  characterName,
+  personaType,
+  size = "md",
+  interactive = false,
+  onClick,
+}: CharacterAvatarProps) {
   const initial = [...characterName.trim()][0] ?? "?";
-  const sizeClass = size === "sm" ? "h-8 w-8 text-xs" : "h-9 w-9 text-sm";
+  const sizeClass = size === "sm" ? "h-8 w-8 text-xs" : size === "lg" ? "h-16 w-16 text-2xl" : "h-9 w-9 text-sm";
+  const className = `flex shrink-0 items-center justify-center rounded-full border border-white/70 font-bold shadow-sm ${sizeClass} ${AVATAR_STYLE[personaType]} ${
+    interactive ? "cursor-pointer transition-transform active:scale-95" : ""
+  }`;
+
+  if (interactive || onClick) {
+    return (
+      <button type="button" aria-label={`${characterName} 프로필 보기`} className={className} onClick={onClick}>
+        {initial}
+      </button>
+    );
+  }
 
   return (
     <div
       aria-label={`${characterName} 프로필`}
-      className={`flex shrink-0 items-center justify-center rounded-full border border-white/70 font-bold shadow-sm ${sizeClass} ${AVATAR_STYLE[personaType]}`}
+      className={className}
     >
       {initial}
     </div>

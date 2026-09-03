@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
 
     const { session } = result;
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
+    const dailyState = await getOrCreateCharacterDailyState(session.id);
     const reconnect = await attemptReconnect(session);
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
       userName: session.userName,
       characterName: session.characterName,
       personaType: session.personaType,
+      dailyState,
       devMode: isDeveloperRequest(req),
     });
   } catch (err) {
@@ -269,6 +271,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     relationshipStage,
     isJealous,
     devMode,
+    dailyState,
     photoMessage,
     extraMessages,
   });

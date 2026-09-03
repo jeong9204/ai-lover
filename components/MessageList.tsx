@@ -15,6 +15,7 @@ interface MessageListProps {
   error: string | null;
   bottomRef: RefObject<HTMLDivElement>;
   onStartCall: () => void;
+  onOpenProfile: () => void;
 }
 
 export function MessageList({
@@ -27,6 +28,7 @@ export function MessageList({
   error,
   bottomRef,
   onStartCall,
+  onOpenProfile,
 }: MessageListProps) {
   function renderAssistantBubble(m: Msg, isLatest: boolean) {
     const photo = m.metadata?.photo;
@@ -112,7 +114,12 @@ export function MessageList({
                 </div>
                 <div className="flex items-start gap-2 self-start">
                   {showAvatar ? (
-                    <CharacterAvatar characterName={characterName} personaType={personaType} />
+                    <CharacterAvatar
+                      characterName={characterName}
+                      personaType={personaType}
+                      interactive
+                      onClick={onOpenProfile}
+                    />
                   ) : (
                     <div className="h-9 w-9 shrink-0" />
                   )}
@@ -125,7 +132,12 @@ export function MessageList({
               <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} items-start gap-2`}>
                 {m.role === "assistant" &&
                   (showAvatar ? (
-                    <CharacterAvatar characterName={characterName} personaType={personaType} />
+                    <CharacterAvatar
+                      characterName={characterName}
+                      personaType={personaType}
+                      interactive
+                      onClick={onOpenProfile}
+                    />
                   ) : (
                     <div className="h-9 w-9 shrink-0" />
                   ))}
@@ -137,7 +149,12 @@ export function MessageList({
       })}
       {(loading || callEnding) && (
         <div className="flex items-start justify-start gap-2">
-          <CharacterAvatar characterName={characterName} personaType={personaType} />
+          <CharacterAvatar
+            characterName={characterName}
+            personaType={personaType}
+            interactive
+            onClick={onOpenProfile}
+          />
           <div className="flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow">
             <span className="typing-dot h-2 w-2 rounded-full bg-gray-400" />
             <span className="typing-dot h-2 w-2 rounded-full bg-gray-400" />

@@ -78,7 +78,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     relationshipStage: session.relationshipStage,
   });
   const emotionHint = buildEmotionPromptHint(session.emotion as Emotion, session.emotionIntensity);
-  const dailyStateHint = buildDailyStatePromptHint(await getOrCreateCharacterDailyState(session.id));
+  const dailyState = await getOrCreateCharacterDailyState(session.id);
+  const dailyStateHint = buildDailyStatePromptHint(dailyState);
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
@@ -151,5 +152,6 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     mood: mood.state,
     relationshipStage,
     devMode,
+    dailyState,
   });
 }
