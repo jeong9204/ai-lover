@@ -1,10 +1,14 @@
 import { Fragment, RefObject } from "react";
+import { CharacterAvatar } from "@/components/CharacterAvatar";
 import { DateDivider } from "@/components/DateDivider";
 import { Msg } from "@/components/chat-types";
 import { isDifferentKoreanDay } from "@/lib/korean-date";
+import type { PersonaType } from "@/lib/persona";
 
 interface MessageListProps {
   messages: Msg[];
+  characterName: string;
+  personaType: PersonaType;
   loading: boolean;
   callEnding: boolean;
   activeCall: boolean;
@@ -15,6 +19,8 @@ interface MessageListProps {
 
 export function MessageList({
   messages,
+  characterName,
+  personaType,
   loading,
   callEnding,
   activeCall,
@@ -73,6 +79,10 @@ export function MessageList({
     <>
       {messages.map((m, i) => {
         const showDateDivider = i === 0 || isDifferentKoreanDay(messages[i - 1].timestamp, m.timestamp);
+        const previousMessage = messages[i - 1];
+        const showAvatar =
+          m.role === "assistant" &&
+          (showDateDivider || !previousMessage || previousMessage.role !== "assistant");
 
         return (
           <Fragment key={i}>
@@ -100,14 +110,25 @@ export function MessageList({
                   <span className="text-xs font-semibold">💕 이제 두 사람은 연인이에요</span>
                   <div className="h-px flex-1 bg-pink-300/60" />
                 </div>
-                <div className="flex justify-start self-start">
+                <div className="flex items-start gap-2 self-start">
+                  {showAvatar ? (
+                    <CharacterAvatar characterName={characterName} personaType={personaType} />
+                  ) : (
+                    <div className="h-9 w-9 shrink-0" />
+                  )}
                   <div className="max-w-[75%] rounded-2xl border border-pink-200 bg-pink-50 px-3 py-2 text-sm text-gray-900 shadow">
                     <p className="whitespace-pre-wrap break-words">{m.content}</p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} items-start gap-2`}>
+                {m.role === "assistant" &&
+                  (showAvatar ? (
+                    <CharacterAvatar characterName={characterName} personaType={personaType} />
+                  ) : (
+                    <div className="h-9 w-9 shrink-0" />
+                  ))}
                 {renderAssistantBubble(m, i === messages.length - 1)}
               </div>
             )}
@@ -115,7 +136,8 @@ export function MessageList({
         );
       })}
       {(loading || callEnding) && (
-        <div className="flex justify-start">
+        <div className="flex items-start justify-start gap-2">
+          <CharacterAvatar characterName={characterName} personaType={personaType} />
           <div className="flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow">
             <span className="typing-dot h-2 w-2 rounded-full bg-gray-400" />
             <span className="typing-dot h-2 w-2 rounded-full bg-gray-400" />

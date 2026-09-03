@@ -513,6 +513,7 @@ export default function Home() {
     <main className="mx-auto flex h-screen max-w-md flex-col bg-[#b2c7da]">
       <ChatHeader
         characterName={characterName}
+        personaType={personaType}
         personaLabel={personaTypeLabel(personaType)}
         relationshipStage={relationshipStage}
         pushSupported={pushSupported}
@@ -547,6 +548,8 @@ export default function Home() {
         )}
         <MessageList
           messages={messages}
+          characterName={characterName}
+          personaType={personaType}
           loading={loading}
           callEnding={callEnding}
           activeCall={activeCall}

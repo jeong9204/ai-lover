@@ -1,5 +1,9 @@
+import { CharacterAvatar } from "@/components/CharacterAvatar";
+import type { PersonaType } from "@/lib/persona";
+
 interface ChatHeaderProps {
   characterName: string;
+  personaType: PersonaType;
   personaLabel: string;
   relationshipStage: string;
   pushSupported: boolean;
@@ -14,6 +18,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({
   characterName,
+  personaType,
   personaLabel,
   relationshipStage,
   pushSupported,
@@ -27,7 +32,8 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   return (
     <header className="flex items-center justify-between bg-[#9db8ce] px-4 py-3 shadow">
-      <div>
+      <div className="flex items-center gap-2">
+        <CharacterAvatar characterName={characterName} personaType={personaType} size="sm" />
         <h1 className="text-lg font-bold text-gray-800">{characterName}</h1>
       </div>
       <div className="flex items-center gap-2">
