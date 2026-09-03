@@ -38,6 +38,7 @@ import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
 import { buildChatHistory, buildConversationSummaryHint } from "@/lib/llm-context";
+import { buildLocalShortReactionReply } from "@/lib/local-replies";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -107,6 +108,50 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const { session } = result;
 
   const devMode = isDeveloperRequest(req);
+  const mood = computeMood(session.lastMessageAt, presenceContext(session));
+  const dailyState = await getOrCreateCharacterDailyState(session.id);
+  const localShortReactionReply = buildLocalShortReactionReply(
+    message,
+    session.personaType,
+    `${session.id}:${session.messages.length}`
+  );
+
+  if (localShortReactionReply) {
+    const now = Date.now();
+    await appendMessage(session.id, { role: "user", content: message, timestamp: now });
+
+    const replyMessage: ChatMessage = {
+      role: "assistant",
+      content: localShortReactionReply.message,
+      timestamp: now + 1,
+      eventType: null,
+    };
+    await appendMessage(session.id, replyMessage);
+
+    await updateSession(session.id, {
+      emotion: localShortReactionReply.emotion,
+      emotionIntensity: localShortReactionReply.intensity,
+      lastConversationMood: conversationMoodFromEmotion(localShortReactionReply.emotion),
+      lastActiveAt: now,
+    });
+
+    return NextResponse.json({
+      sessionId: session.id,
+      characterName: session.characterName,
+      personaType: session.personaType,
+      reply: replyMessage.content,
+      event: null,
+      mood: mood.state,
+      relationshipStage: session.relationshipStage,
+      isJealous: false,
+      devMode,
+      dailyState,
+      photoMessage: null,
+      extraMessages: [],
+      localReply: true,
+    });
+  }
+
   if (!devMode && (await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
     return NextResponse.json(
       { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
@@ -114,10 +159,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const mood = computeMood(session.lastMessageAt, presenceContext(session));
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당
   const relevantMemories = pickRelevantMemories(session.memories, message);
-  const dailyState = await getOrCreateCharacterDailyState(session.id);
   const pendingPhotoMessage = createPhotoShareMessage({
     userMessage: message,
     dailyState,
