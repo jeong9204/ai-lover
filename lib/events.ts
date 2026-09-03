@@ -7,6 +7,7 @@
 import type { MoodState } from "./mood";
 import type { PersonaType } from "./persona";
 import type { ChatMessage } from "./store";
+import { koreanHour } from "./korean-date";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -55,13 +56,25 @@ export function buildMeetupCompletedLabel(): string {
   return "둘은 잠깐 만나고 돌아왔다";
 }
 
-export function buildMeetupReturnMessage(personaType: PersonaType): string {
+export function buildMeetupReturnMessage(personaType: PersonaType, timestamp = Date.now()): string {
+  const hour = koreanHour(timestamp);
+  const isDaytime = hour >= 6 && hour < 17;
+  const isEvening = hour >= 17 && hour < 22;
+
   if (personaType === "northern_duke") {
+    if (isDaytime) return "도착했어.\n다시 할 일 해.";
+    if (isEvening) return "들어갔어?\n늦게 돌아다니지 말고.";
     return "들어갔어?\n문 잠그고.";
   }
+
   if (personaType === "flirty") {
+    if (isDaytime) return "나 다시 움직이는 중.\n아까 잠깐 본 거 좀 좋았는데?";
+    if (isEvening) return "집 가는 길이야?\n아까 헤어질 때 좀 아쉬웠지.";
     return "집 잘 들어갔어?\n아까 헤어질 때 좀 아쉬웠지.";
   }
+
+  if (isDaytime) return "나 다시 가는 중ㅋㅋ\n아까 잠깐 본 거 좀 재밌었다.";
+  if (isEvening) return "집 가는 길이야?\n아까 좀 재밌긴 했다.";
   return "집 들어갔어?\n아까 좀 재밌긴 했다.";
 }
 
@@ -103,7 +116,7 @@ export function buildAfterMeetupPromptHint(hasContext: boolean, personaType: Per
   return [
     "[최근 만남 이후]",
     "최근 대화에서 둘은 이미 잠깐 만나고 돌아왔다.",
-    "이후 대화는 새 만남 이벤트를 만들지 말고, 귀가 후 카톡의 여운처럼 이어간다.",
+    "이후 대화는 새 만남 이벤트를 만들지 말고, 만남 뒤 다시 카톡으로 이어지는 여운처럼 이어간다.",
     "유저가 문, 씻기, 머리 말리기, 도착, 들어감, 나옴 같은 말을 해도 실제 만남 장면을 다시 시작하지 않는다.",
     "필요하면 '방금 보고 온 사람'처럼 걱정하거나 장난치되, 카톡 대화 안에서만 반응한다.",
     `톤: ${tone}`,

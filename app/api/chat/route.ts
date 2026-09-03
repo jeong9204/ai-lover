@@ -223,7 +223,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       };
       const meetupReturnMessage: ChatMessage = {
         role: "assistant",
-        content: buildMeetupReturnMessage(session.personaType),
+        content: buildMeetupReturnMessage(session.personaType, now),
         timestamp: now + 3,
         eventType: null,
       };

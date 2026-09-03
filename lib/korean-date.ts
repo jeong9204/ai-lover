@@ -27,6 +27,15 @@ export function koreanDateLabel(timestamp: number): string {
   return dateLabelFormatter.format(new Date(timestamp));
 }
 
+export function koreanHour(timestamp = Date.now()): number {
+  const hour = new Intl.DateTimeFormat("en-US", {
+    timeZone: KOREA_TIME_ZONE,
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(timestamp));
+  return Number(hour);
+}
+
 export function isDifferentKoreanDay(prevTimestamp: number, currentTimestamp: number): boolean {
   return koreanDateKey(prevTimestamp) !== koreanDateKey(currentTimestamp);
 }
