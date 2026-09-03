@@ -3,6 +3,7 @@
 
 import { supabase } from "./supabase";
 import { createCharacterDailyState } from "./daily-state";
+import { isExplicitMeetupRequest } from "./events";
 import { koreanDateKey } from "./korean-date";
 import { MilestoneDraft } from "./milestones";
 import {
@@ -216,7 +217,7 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 
   if (error || !data) return [];
-  return data
+  const messages = data
     .filter((m) => m.event_type !== "time_skip")
     .map((m) => ({
       role: m.role as ChatMessage["role"],
@@ -225,6 +226,48 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
       eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
       metadata: "metadata" in m ? (m.metadata as MessageMetadata | null) : null,
     }));
+  return hideInvalidMeetupSequences(messages);
+}
+
+function looksLikeMeetupReturnMessage(message: ChatMessage): boolean {
+  if (message.role !== "assistant") return false;
+  return /(집\s*(잘\s*)?들어갔어|문\s*잠그고|집\s*가는\s*길|다시\s*(가|움직이는)\s*중|다시\s*할\s*일|아까\s*(잠깐\s*)?(본|헤어질|재밌))/u.test(
+    message.content
+  );
+}
+
+function hideInvalidMeetupSequences(messages: ChatMessage[]): ChatMessage[] {
+  const sanitized: ChatMessage[] = [];
+  let skipInvalidMeetupCompleted = false;
+  let skipInvalidMeetupReturn = false;
+
+  for (const message of messages) {
+    if (skipInvalidMeetupCompleted && message.eventType === "meetup_completed") {
+      skipInvalidMeetupCompleted = false;
+      skipInvalidMeetupReturn = true;
+      continue;
+    }
+
+    if (skipInvalidMeetupReturn && looksLikeMeetupReturnMessage(message)) {
+      skipInvalidMeetupReturn = false;
+      continue;
+    }
+
+    skipInvalidMeetupReturn = false;
+
+    if (message.eventType === "meetup_request") {
+      const previousUserMessage = [...sanitized].reverse().find((m) => m.role === "user");
+      if (!previousUserMessage || !isExplicitMeetupRequest(previousUserMessage.content)) {
+        sanitized.push({ ...message, eventType: null });
+        skipInvalidMeetupCompleted = true;
+        continue;
+      }
+    }
+
+    sanitized.push(message);
+  }
+
+  return sanitized;
 }
 
 async function loadMemories(sessionId: string): Promise<Memory[]> {
