@@ -7,8 +7,30 @@ body {
   height: 100%;
 }
 
+html {
+  overflow: hidden;
+}
+
 body {
   background: #b2c7da;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.chat-shell {
+  height: 100vh;
+  height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
+}
+
+.chat-scroll {
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-input-footer {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 .typing-dot {

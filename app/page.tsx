@@ -110,6 +110,27 @@ export default function Home() {
     loadingRef.current = loading;
   }, [loading]);
 
+  useEffect(() => {
+    function updateAppHeight() {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${height}px`);
+      if (document.activeElement === inputRef.current) {
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end" }));
+      }
+    }
+
+    updateAppHeight();
+    window.visualViewport?.addEventListener("resize", updateAppHeight);
+    window.visualViewport?.addEventListener("scroll", updateAppHeight);
+    window.addEventListener("resize", updateAppHeight);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateAppHeight);
+      window.visualViewport?.removeEventListener("scroll", updateAppHeight);
+      window.removeEventListener("resize", updateAppHeight);
+      document.documentElement.style.removeProperty("--app-height");
+    };
+  }, []);
+
   function fetchWithSession(url: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     if (sessionIdRef.current) headers.set("x-session-id", sessionIdRef.current);
@@ -591,7 +612,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="mx-auto flex h-screen max-w-md flex-col bg-[#b2c7da]">
+    <main className="chat-shell mx-auto flex max-w-md flex-col overflow-hidden bg-[#b2c7da]">
       <ChatHeader
         characterName={characterName}
         personaType={personaType}
@@ -612,7 +633,7 @@ export default function Home() {
         <p className="bg-white/70 px-3 py-1 text-center text-[11px] text-gray-600">{pushStatus}</p>
       )}
 
-      <section className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
+      <section className="chat-scroll flex-1 space-y-2 overflow-y-auto px-3 py-4">
         {loadError && (
           <p className="rounded bg-red-100 px-3 py-2 text-center text-xs text-red-700">
             {loadError}

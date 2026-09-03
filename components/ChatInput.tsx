@@ -38,7 +38,7 @@ export function ChatInput({
         </div>
       )}
 
-      <footer className="flex items-end gap-2 border-t bg-white px-3 py-2">
+      <footer className="chat-input-footer flex shrink-0 items-end gap-2 border-t bg-white px-3 pt-2">
         <textarea
           ref={inputRef}
           rows={1}
