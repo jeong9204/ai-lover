@@ -30,6 +30,7 @@ import {
   buildMeetupReturnMessage,
   hasRecentMeetupContext,
   isExplicitMeetupRequest,
+  isMeetupAcceptanceReply,
   recentDeletedMessageHint,
 } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
@@ -177,6 +178,9 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   // 매 턴 "연인이 됐어요" 배너가 반복되는 걸 막는 서버 쪽 안전장치 (프롬프트만으로는 100% 못 막음).
   const justConfessed = structured.event?.type === "confession_ending" && !session.confessedAt;
   const canCreateMeetup = isExplicitMeetupRequest(message);
+  const shouldCreateMeetup =
+    canCreateMeetup &&
+    (structured.event?.type === "meetup_request" || isMeetupAcceptanceReply(structured.message));
 
   let replyEventType: ChatMessage["eventType"] = null;
   let photoMessage: ChatMessage | null = null;
@@ -193,10 +197,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     replyEventType =
       structured.event?.type === "call_request"
         ? "call_request"
-        : structured.event?.type === "meetup_request"
-          ? canCreateMeetup
-            ? "meetup_request"
-            : null
+        : shouldCreateMeetup
+          ? "meetup_request"
           : justConfessed
             ? "confession_ending"
             : null;

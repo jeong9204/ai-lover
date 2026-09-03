@@ -77,6 +77,15 @@ export function isExplicitMeetupRequest(message: string): boolean {
   return !MEETUP_FALSE_POSITIVE_PATTERN.test(normalized);
 }
 
+const MEETUP_REJECTION_PATTERN =
+  /(못\s*(가|나가|만나|봐|볼)|안\s*(돼|되겠|나가|갈|만나|봐|볼)|힘들|어렵|다음에|나중에\s*(보자|봐)|오늘은\s*(좀|안)|미안)/;
+
+export function isMeetupAcceptanceReply(message: string): boolean {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  return !MEETUP_REJECTION_PATTERN.test(normalized);
+}
+
 export function hasRecentMeetupContext(messages: ChatMessage[], lookback = 12): boolean {
   return messages.slice(-lookback).some((message) => message.eventType === "meetup_completed");
 }
