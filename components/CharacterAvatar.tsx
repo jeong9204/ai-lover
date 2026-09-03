@@ -1,3 +1,4 @@
+import { characterProfileImage } from "@/lib/character-profile";
 import type { PersonaType } from "@/lib/persona";
 
 interface CharacterAvatarProps {
@@ -22,15 +23,21 @@ export function CharacterAvatar({
   onClick,
 }: CharacterAvatarProps) {
   const initial = [...characterName.trim()][0] ?? "?";
+  const image = characterProfileImage(characterName);
   const sizeClass = size === "sm" ? "h-8 w-8 text-xs" : size === "lg" ? "h-16 w-16 text-2xl" : "h-9 w-9 text-sm";
   const className = `flex shrink-0 items-center justify-center rounded-full border border-white/70 font-bold shadow-sm ${sizeClass} ${AVATAR_STYLE[personaType]} ${
     interactive ? "cursor-pointer transition-transform active:scale-95" : ""
   }`;
+  const content = image ? (
+    <img src={image.src} alt="" className="h-full w-full rounded-full object-cover" />
+  ) : (
+    initial
+  );
 
   if (interactive || onClick) {
     return (
       <button type="button" aria-label={`${characterName} 프로필 보기`} className={className} onClick={onClick}>
-        {initial}
+        {content}
       </button>
     );
   }
@@ -40,7 +47,7 @@ export function CharacterAvatar({
       aria-label={`${characterName} 프로필`}
       className={className}
     >
-      {initial}
+      {content}
     </div>
   );
 }

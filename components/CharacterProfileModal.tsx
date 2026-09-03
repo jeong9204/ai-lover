@@ -1,4 +1,5 @@
 import { CharacterAvatar } from "@/components/CharacterAvatar";
+import { characterProfileImage } from "@/lib/character-profile";
 import type { PersonaType } from "@/lib/persona";
 import { buildMoodLabel, buildStatusMessage, buildTodayStatus } from "@/lib/profile-status";
 import type { CharacterDailyState } from "@/lib/store";
@@ -25,6 +26,7 @@ export function CharacterProfileModal({
   onClose,
 }: CharacterProfileModalProps) {
   if (!open) return null;
+  const image = characterProfileImage(characterName);
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 px-3 py-4 sm:items-center">
@@ -44,8 +46,14 @@ export function CharacterProfileModal({
           x
         </button>
 
+        {image ? (
+          <div className="-mx-1 -mt-1 mb-4 overflow-hidden rounded-xl bg-gray-100">
+            <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-3">
-          <CharacterAvatar characterName={characterName} personaType={personaType} size="lg" />
+          <CharacterAvatar characterName={characterName} personaType={personaType} size={image ? "md" : "lg"} />
           <div className="min-w-0">
             <h2 className="truncate text-lg font-bold">{characterName}</h2>
             <p className="text-xs text-gray-500">
