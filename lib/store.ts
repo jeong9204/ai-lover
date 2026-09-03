@@ -177,7 +177,7 @@ async function createSessionRow(): Promise<{ row: SessionRow | null; error: unkn
 
 // 인증 없이 누구나 세션을 만들 수 있는 구조라, LLM 호출을 유발하는 요청(채팅 전송/통화 종료)에
 // 세션당 하루 한도를 걸어둔다 — 안 걸면 스크립트로 두드렸을 때 Anthropic 비용이 무제한으로 늘어난다.
-export const DAILY_MESSAGE_LIMIT = 50;
+export const DAILY_MESSAGE_LIMIT = 30;
 
 function startOfTodayKST(): Date {
   const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
