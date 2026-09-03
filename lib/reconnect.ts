@@ -20,7 +20,7 @@ import {
 } from "./store";
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
-import { buildEventHistory } from "./llm-context";
+import { buildConversationSummaryHint, buildEventHistory } from "./llm-context";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -70,6 +70,8 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (emotionHint) systemPromptParts.push(emotionHint);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   if (memoryHint) systemPromptParts.push(`[먼저 연락할 때 떠올릴 수 있는 기억]\n${memoryHint}`);
+  const conversationSummaryHint = buildConversationSummaryHint(session.messages);
+  if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const history: LLMMessage[] = buildEventHistory(session.messages, buildReconnectTrigger(mood.elapsedMs, mood.state));

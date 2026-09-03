@@ -36,7 +36,7 @@ import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
-import { buildChatHistory } from "@/lib/llm-context";
+import { buildChatHistory, buildConversationSummaryHint } from "@/lib/llm-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -144,6 +144,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  const conversationSummaryHint = buildConversationSummaryHint(session.messages);
+  if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const afterMeetupHint = buildAfterMeetupPromptHint(
     hasRecentMeetupContext(session.messages),
     session.personaType

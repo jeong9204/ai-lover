@@ -23,7 +23,7 @@ import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
-import { buildEventHistory } from "@/lib/llm-context";
+import { buildConversationSummaryHint, buildEventHistory } from "@/lib/llm-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -88,6 +88,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   ];
   if (emotionHint) systemPromptParts.push(emotionHint);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  const conversationSummaryHint = buildConversationSummaryHint(session.messages);
+  if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const history: LLMMessage[] = buildEventHistory(session.messages, buildCallEndedTrigger(clampedDuration));
