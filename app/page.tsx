@@ -15,6 +15,12 @@ import type { CharacterDailyState } from "@/lib/store";
 const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
 const DEV_MODE_STORAGE_KEY = "ai-lover-dev-secret";
+const LIMIT_NOTICE_STORAGE_KEY = "ai-lover-limit-notice";
+
+interface StoredLimitNotice {
+  dateKey: string;
+  message: string;
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,6 +37,34 @@ function urlBase64ToUint8Array(base64Url: string) {
   const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+function koreanTodayKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "00";
+  const day = parts.find((part) => part.type === "day")?.value ?? "00";
+  return `${year}-${month}-${day}`;
+}
+
+function readStoredLimitNotice(): string | null {
+  const raw = localStorage.getItem(LIMIT_NOTICE_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as StoredLimitNotice;
+    if (parsed.dateKey === koreanTodayKey() && parsed.message) return parsed.message;
+  } catch {
+    // 잘못 저장된 값은 아래에서 정리한다.
+  }
+
+  localStorage.removeItem(LIMIT_NOTICE_STORAGE_KEY);
+  return null;
 }
 
 export default function Home() {
@@ -58,6 +92,7 @@ export default function Home() {
   const [devMode, setDevMode] = useState(false);
   const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -91,6 +126,20 @@ export default function Home() {
     }, durationMs);
   }
 
+  function showLimitNotice(message: string) {
+    localStorage.setItem(
+      LIMIT_NOTICE_STORAGE_KEY,
+      JSON.stringify({ dateKey: koreanTodayKey(), message } satisfies StoredLimitNotice)
+    );
+    setLimitNotice(message);
+    setError(null);
+  }
+
+  function clearLimitNotice() {
+    localStorage.removeItem(LIMIT_NOTICE_STORAGE_KEY);
+    setLimitNotice(null);
+  }
+
   async function loadSession() {
     sessionIdRef.current = localStorage.getItem(SESSION_STORAGE_KEY);
     try {
@@ -109,7 +158,9 @@ export default function Home() {
       setCharacterName(data.characterName ?? PERSONA_NAME);
       setPersonaType(data.personaType ?? "default");
       setDailyState(data.dailyState ?? null);
-      setDevMode(Boolean(data.devMode));
+      const nextDevMode = Boolean(data.devMode);
+      setDevMode(nextDevMode);
+      if (nextDevMode) clearLimitNotice();
       setLoadError(null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -123,6 +174,7 @@ export default function Home() {
       localStorage.removeItem(DEV_MODE_STORAGE_KEY);
       devSecretRef.current = null;
       setDevMode(false);
+      setLimitNotice(readStoredLimitNotice());
       params.delete("dev");
       window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
     } else if (devParam) {
@@ -133,6 +185,7 @@ export default function Home() {
     } else {
       devSecretRef.current = localStorage.getItem(DEV_MODE_STORAGE_KEY);
     }
+    setLimitNotice(readStoredLimitNotice());
     setNameSkipped(localStorage.getItem(NAME_SKIPPED_KEY) === "1");
     loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,6 +323,7 @@ export default function Home() {
       await unsubscribeCurrentPush();
       localStorage.removeItem(SESSION_STORAGE_KEY);
       localStorage.removeItem(NAME_SKIPPED_KEY);
+      clearLimitNotice();
       sessionIdRef.current = null;
       setNameSkipped(false);
       setUserName(null);
@@ -376,7 +430,14 @@ export default function Home() {
         body: JSON.stringify({ message: text }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "오류가 발생했습니다.");
+      if (!res.ok) {
+        const message = data.error ?? "오류가 발생했습니다.";
+        if (res.status === 429) {
+          showLimitNotice(message);
+          return;
+        }
+        throw new Error(message);
+      }
 
       if (data.sessionId) {
         sessionIdRef.current = data.sessionId;
@@ -427,6 +488,7 @@ export default function Home() {
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
+      if (res.ok && limitNotice) clearLimitNotice();
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
@@ -480,7 +542,14 @@ export default function Home() {
         body: JSON.stringify({ durationSec }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "통화 종료 처리에 실패했습니다.");
+      if (!res.ok) {
+        const message = data.error ?? "통화 종료 처리에 실패했습니다.";
+        if (res.status === 429) {
+          showLimitNotice(message);
+          return;
+        }
+        throw new Error(message);
+      }
 
       const appended: Msg[] = [
         {
@@ -505,6 +574,7 @@ export default function Home() {
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
+      if (res.ok && limitNotice) clearLimitNotice();
       if (data.error) setError(data.error);
     } catch (e) {
       setError(e instanceof Error ? e.message : "통화 종료 처리에 실패했습니다.");
@@ -565,7 +635,7 @@ export default function Home() {
           loading={loading}
           callEnding={callEnding}
           activeCall={activeCall}
-          error={error}
+          error={error ?? limitNotice}
           bottomRef={bottomRef}
           onStartCall={startCall}
           onOpenProfile={() => setProfileOpen(true)}
