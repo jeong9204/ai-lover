@@ -66,10 +66,10 @@ export function buildMeetupReturnMessage(personaType: PersonaType): string {
 }
 
 const EXPLICIT_MEETUP_REQUEST_PATTERN =
-  /(만날래|만나자|보자|볼래|얼굴\s*볼|잠깐\s*볼|나와|나올래|와줄래|올래|데리러\s*(갈게|와|올래)|보러\s*(갈게|와|올래))/;
+  /(만날래|만나자|보자|볼래|얼굴\s*볼|잠깐\s*볼|이따\s*(봐|보자)|좀\s*있다\s*(봐|보자)|곧\s*(봐|보자)|나중에\s*(봐|보자)|밖에서\s*(봐|보자|볼래)|공원에서\s*(봐|보자|볼래)|산책\s*(갈래|가자|할래)|나와|나올래|와줄래|올래|데리러\s*(갈게|와|올래)|보러\s*(갈게|와|올래))/;
 
 const MEETUP_FALSE_POSITIVE_PATTERN =
-  /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고)/;
+  /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고|이따\s*(말|연락|알려|해)|나중에\s*(말|연락|알려|해))/;
 
 export function isExplicitMeetupRequest(message: string): boolean {
   const normalized = message.replace(/\s+/g, " ").trim();
