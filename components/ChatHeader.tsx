@@ -33,8 +33,8 @@ export function ChatHeader({
   onOpenProfile,
 }: ChatHeaderProps) {
   return (
-    <header className="flex items-center justify-between bg-[#9db8ce] px-4 py-3 shadow">
-      <div className="flex items-center gap-2">
+    <header className="flex shrink-0 items-center justify-between gap-3 bg-[#9db8ce] px-4 py-3 shadow">
+      <div className="flex min-w-0 items-center gap-2">
         <CharacterAvatar
           characterName={characterName}
           personaType={personaType}
@@ -42,9 +42,9 @@ export function ChatHeader({
           interactive
           onClick={onOpenProfile}
         />
-        <h1 className="text-lg font-bold text-gray-800">{characterName}</h1>
+        <h1 className="truncate text-lg font-bold text-gray-800">{characterName}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 shrink items-center justify-end gap-2">
         {pushSupported && (
           <button
             onClick={onTogglePushSubscription}
@@ -68,7 +68,7 @@ export function ChatHeader({
             <span className="text-[10px] font-semibold text-gray-500">DEV</span>
           </>
         )}
-        <p className="text-xs text-gray-600">
+        <p className="truncate text-xs text-gray-600">
           {personaLabel} · {relationshipStage}
         </p>
       </div>

@@ -20,10 +20,10 @@ export function NamePrompt({
   const particle = subjectParticle(characterName);
 
   return (
-    <div className="mx-auto mt-10 max-w-[85%] rounded-2xl bg-white px-4 py-4 text-center shadow">
+    <div className="mx-auto mt-10 w-[85%] max-w-sm rounded-2xl bg-white px-4 py-4 text-center shadow">
       <p className="mb-3 text-sm text-gray-700">{`${characterName}${particle} 널 뭐라고 부르면 좋을까?`}</p>
       <input
-        className="mb-3 w-full rounded-full border px-4 py-2 text-center text-sm outline-none focus:border-yellow-400"
+        className="mb-3 w-full rounded-full border px-4 py-2 text-center text-base outline-none focus:border-yellow-400 sm:text-sm"
         placeholder="이름이나 애칭 (선택)"
         value={nameInput}
         maxLength={20}
@@ -32,7 +32,7 @@ export function NamePrompt({
           if (e.key === "Enter") onSubmitName();
         }}
       />
-      <div className="flex justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
         <button
           onClick={onSubmitName}
           disabled={!nameInput.trim() || nameSubmitting}

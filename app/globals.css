@@ -9,12 +9,15 @@ body {
 
 html {
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   background: #b2c7da;
   overflow: hidden;
   overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 .chat-shell {

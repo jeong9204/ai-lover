@@ -38,11 +38,11 @@ export function ChatInput({
         </div>
       )}
 
-      <footer className="chat-input-footer flex shrink-0 items-end gap-2 border-t bg-white px-3 pt-2">
+      <footer className="chat-input-footer flex w-full shrink-0 items-end gap-2 border-t bg-white px-3 pt-2">
         <textarea
           ref={inputRef}
           rows={1}
-          className="max-h-[4.6rem] flex-1 resize-none overflow-y-auto rounded-2xl border px-4 py-2 text-sm leading-snug outline-none focus:border-yellow-400"
+          className="max-h-[4.8rem] min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border px-4 py-2 text-base leading-snug outline-none focus:border-yellow-400 sm:text-sm"
           placeholder="메시지를 입력하세요"
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
@@ -57,7 +57,7 @@ export function ChatInput({
         <button
           onClick={onRequestSend}
           disabled={loading || !input.trim()}
-          className="rounded-full bg-[#fee500] px-4 py-2 text-sm font-semibold text-gray-900 disabled:opacity-40"
+          className="shrink-0 rounded-full bg-[#fee500] px-3.5 py-2 text-sm font-semibold text-gray-900 disabled:opacity-40"
         >
           전송
         </button>

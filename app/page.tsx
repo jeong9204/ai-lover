@@ -612,7 +612,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="chat-shell mx-auto flex max-w-md flex-col overflow-hidden bg-[#b2c7da]">
+    <main className="chat-shell mx-auto flex w-full max-w-md flex-col overflow-hidden bg-[#b2c7da]">
       <ChatHeader
         characterName={characterName}
         personaType={personaType}
@@ -630,7 +630,9 @@ export default function Home() {
       />
 
       {pushStatus && (
-        <p className="bg-white/70 px-3 py-1 text-center text-[11px] text-gray-600">{pushStatus}</p>
+        <p className="shrink-0 truncate bg-white/70 px-3 py-1 text-center text-[11px] text-gray-600">
+          {pushStatus}
+        </p>
       )}
 
       <section className="chat-scroll flex-1 space-y-2 overflow-y-auto px-3 py-4">
