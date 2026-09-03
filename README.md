@@ -57,8 +57,6 @@ cp .env.example .env.local
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — `npx web-push generate-vapid-keys`로 생성
 - `VAPID_SUBJECT` — `mailto:본인이메일` 형식이면 아무 값이나 가능
 - `CRON_SECRET` — 임의의 비밀 문자열 (`openssl rand -hex 24` 등)
-- `DEV_MODE_SECRET` — 개발자 모드 진입용 비밀 문자열. `/?dev=이값`으로 접속하면 이 브라우저에서
-  리밋 우회/개발용 UI가 켜지고, `/?dev=off`로 끌 수 있습니다.
 
 ```bash
 npm run dev
@@ -115,22 +113,8 @@ npm run cron
 7. 질투/어색함/전화/만남/고백/첫 선톡 같은 중요한 순간은 `relationship_milestones`에 중복 없이 기록됩니다.
 8. 새로고침하거나 브라우저를 완전히 껐다 켜도 이전 대화/감정/관계 단계가 그대로 복원됩니다
    (`localStorage`의 `session_id` + Supabase 저장 덕분).
-9. 개발자 모드에서만 보이는 "초기화"를 누르면 현재 브라우저의 익명 세션/이름 선택/푸시 구독을
-   정리하고 새 대화를 시작합니다. 과거 Supabase 데이터는 데모 안전을 위해 서버에서 삭제하지 않습니다.
-10. 헤더나 상대 메시지 옆 프로필 썸네일을 누르면, 캐릭터 이름/타입/관계 단계와 오늘의 상태 메시지를
+9. 헤더나 상대 메시지 옆 프로필 썸네일을 누르면, 캐릭터 이름/타입/관계 단계와 오늘의 상태 메시지를
    작은 프로필 모달에서 확인할 수 있습니다.
-
-## 개발자 모드
-
-회원가입 없이 개인 테스트용 리밋 우회와 개발용 UI를 켤 수 있습니다.
-
-1. `.env.local`에 `DEV_MODE_SECRET`을 설정합니다.
-2. 브라우저에서 `http://localhost:3000/?dev=DEV_MODE_SECRET값`으로 접속합니다.
-3. URL의 `dev` 파라미터는 바로 지워지고, token은 이 브라우저의 localStorage에 저장됩니다.
-4. 서버가 매 요청의 `x-dev-secret`을 검증해 맞을 때만 하루 메시지 제한을 우회합니다.
-5. 개발자 모드를 끄려면 `http://localhost:3000/?dev=off`로 접속합니다.
-
-일반 유저 화면에서는 초기화 버튼과 내부 mood가 보이지 않습니다.
 
 ## 비용 관리 메모
 
@@ -153,7 +137,7 @@ LLM에 매번 다시 보내는 문맥입니다.
 기획문서 6장 "트레이드오프 / 리스크 관리 메모"에 정리되어 있습니다. 요약하면:
 
 - 회원가입/로그인 없음 — `localStorage`의 익명 `session_id`로만 세션을 구분 (기기 간 이어하기는 안 됨)
-- 캐릭터 선택 UI는 아직 없음 — 새 세션마다 이름/페르소나 타입을 랜덤 배정하고, 개발자 모드 초기화로 다시 뽑음
+- 캐릭터 선택 UI는 아직 없음 — 새 세션마다 이름/페르소나 타입을 랜덤 배정
 - 기억 검색은 키워드 겹침 + 최근성 수준 (임베딩/벡터DB 아님)
 - 사진은 Pexels CDN URL과 출처 메타데이터를 메시지에 저장하는 1차 구현 (Supabase Storage 업로드/자체 갤러리 없음)
 - 감정 판단은 LLM structured output + Zod 검증으로 대체했지만, 여전히 확률적 판단이라 매번 동일하게

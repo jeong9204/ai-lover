@@ -5,3 +5,4 @@ node_modules
 cleaned_session.jsonl
 transcripts/
 *.tsbuildinfo
+HANDOFF.md
