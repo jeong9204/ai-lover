@@ -18,6 +18,7 @@ components/
   ChatHeader.tsx / MessageList.tsx / ChatInput.tsx / NamePrompt.tsx / CallOverlay.tsx / CharacterProfileModal.tsx
 lib/
   persona.ts    캐릭터 이름/페르소나 타입(10년지기/북부대공/능글)과 말투 프롬프트 정의
+  character-profile.ts  캐릭터 이름별 프로필 이미지 매핑
   mood.ts       Presence — 경과 시간 + 직전 대화 분위기 + 관계 단계 → mood 계산
   jealousy.ts   Hidden Emotion — 감정별 서브텍스트 힌트 + 키워드 보조 신호
   memory.ts     기억 후보 선별(키워드 겹침 + 최근성) / User·Relationship Memory 프롬프트 힌트 생성
@@ -26,6 +27,7 @@ lib/
   profile-status.ts 프로필 모달용 상태 메시지/오늘 상태 문구 생성
   events.ts     Event — 재접속 트리거, 삭제 메시지 힌트, 통화/만남 이벤트 라벨
   photo-assets.ts  Pexels 기반 사진 메시지 후보와 사진 전송 트리거
+  local-replies.ts  짧은 리액션(ㅋㅋㅋ/응/오키 등)을 LLM 호출 없이 처리하는 로컬 답장
   reconnect.ts  "재접속 시 먼저 말 걸기" 오케스트레이션 — GET /api/chat과 cron이 공유
   schema.ts     Zod 스키마(구조화 출력 검증) + 관계 점수 → 관계 단계 텍스트 매핑
   llm.ts        Anthropic API 호출 (fetch + tool_choice 강제, SDK 의존성 없음)
@@ -110,11 +112,15 @@ npm run cron
 6. "오늘 잠깐 만날래?", "이따 보자", "공원에서 보자", "산책 가자"처럼 실제 만남을 제안하고
    캐릭터가 받아들이면, 카톡 안에서 만남 장면을 길게 연기하지 않고 `둘은 잠깐 만나고 돌아왔다`
    이벤트 카드로 넘긴 뒤 시간대에 맞는 카톡으로 복귀합니다.
+   "그날 보자", "목요일에 보자" 같은 미래 약속 확인은 바로 만남 이벤트로 넘기지 않습니다.
 7. 질투/어색함/전화/만남/고백/첫 선톡 같은 중요한 순간은 `relationship_milestones`에 중복 없이 기록됩니다.
 8. 새로고침하거나 브라우저를 완전히 껐다 켜도 이전 대화/감정/관계 단계가 그대로 복원됩니다
    (`localStorage`의 `session_id` + Supabase 저장 덕분).
 9. 헤더나 상대 메시지 옆 프로필 썸네일을 누르면, 캐릭터 이름/타입/관계 단계와 오늘의 상태 메시지를
-   작은 프로필 모달에서 확인할 수 있습니다.
+   작은 프로필 모달에서 확인할 수 있습니다. 캐릭터별 프로필 이미지는 채팅 썸네일과 프로필 모달에 함께
+   적용됩니다.
+10. 최근 몇 턴 안에서 이미 나온 소재를 같은 방식으로 반복하지 않도록 프롬프트와 최근 대화 요약 힌트를
+    보강했습니다.
 
 ## 비용 관리 메모
 
@@ -127,6 +133,8 @@ npm run cron
   요약 힌트로 압축해 함께 전달합니다.
 - 긴 메시지는 프롬프트에 넣기 전에 최대 500자까지 압축합니다.
 - 출력 상한은 기본 480 토큰, 이벤트성 답장은 360 토큰으로 제한합니다.
+- `ㅋㅋㅋ`, `응`, `오키`, `아하`처럼 내용이 거의 없는 짧은 리액션은 LLM 호출 없이 로컬 답장으로 처리합니다.
+- 일반 유저는 세션당 하루 30회로 LLM 호출성 대화를 제한합니다.
 - 모델은 `ANTHROPIC_MODEL`, 기본 출력 상한은 `ANTHROPIC_MAX_TOKENS`로 운영 중 조정할 수 있습니다.
 
 Supabase에는 전체 메시지를 그대로 저장하므로 사용자가 보는 대화 기록은 줄어들지 않습니다. 줄이는 건 오직
