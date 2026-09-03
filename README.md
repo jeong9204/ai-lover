@@ -48,6 +48,8 @@ cp .env.example .env.local
 `.env.local`에 채워야 할 값:
 
 - `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL`, `ANTHROPIC_MAX_TOKENS` — 선택값. 비워두면 `claude-sonnet-5`와 짧은 카톡 답장용
+  기본 출력 상한으로 동작합니다. 비용을 더 줄이고 싶으면 Vercel/Supabase가 아니라 이 값을 먼저 조정하세요.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase 프로젝트가 없다면 [supabase.com](https://supabase.com)에서
   무료로 새로 만든 뒤, SQL Editor에서 `db/migrations/*.sql`을 파일 번호 순서대로
   실행하세요. Project URL과 **service_role** 키(⚠️ `anon` 키 아님)는 Settings → API에서 확인합니다.
@@ -125,6 +127,20 @@ npm run cron
 5. 개발자 모드를 끄려면 `http://localhost:3000/?dev=off`로 접속합니다.
 
 일반 유저 화면에서는 초기화 버튼과 내부 mood가 보이지 않습니다.
+
+## 비용 관리 메모
+
+가장 큰 비용 후보는 매 대화 턴마다 호출되는 Anthropic API입니다. 그래서 LLM 호출부는 다음처럼 비용 방어선을
+둡니다.
+
+- 일반 채팅은 최근 대화 8개만 LLM에 전달합니다.
+- 재접속 선톡/통화 후속 같은 이벤트성 답장은 최근 대화 6개만 전달합니다.
+- 긴 메시지는 프롬프트에 넣기 전에 최대 500자까지 압축합니다.
+- 출력 상한은 기본 480 토큰, 이벤트성 답장은 360 토큰으로 제한합니다.
+- 모델은 `ANTHROPIC_MODEL`, 기본 출력 상한은 `ANTHROPIC_MAX_TOKENS`로 운영 중 조정할 수 있습니다.
+
+Supabase에는 전체 메시지를 그대로 저장하므로 사용자가 보는 대화 기록은 줄어들지 않습니다. 줄이는 건 오직
+LLM에 매번 다시 보내는 문맥입니다.
 
 ## 알려진 한계 / 의도적으로 타협한 부분
 

@@ -5,12 +5,23 @@
 import { StructuredReplySchema, StructuredReply, EmotionEnum } from "./schema";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-5";
+const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_MAX_TOKENS = 480;
 const TOOL_NAME = "respond_in_character";
 
 export interface LLMMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+interface GenerateStructuredReplyOptions {
+  maxTokens?: number;
+}
+
+function resolveMaxTokens(override?: number): number {
+  if (override) return override;
+  const configured = Number(process.env.ANTHROPIC_MAX_TOKENS);
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_MAX_TOKENS;
 }
 
 export const STRUCTURED_OUTPUT_GUIDE = `
@@ -45,7 +56,8 @@ export const STRUCTURED_OUTPUT_GUIDE = `
 
 export async function generateStructuredReply(
   systemPrompt: string,
-  messages: LLMMessage[]
+  messages: LLMMessage[],
+  options: GenerateStructuredReplyOptions = {}
 ): Promise<StructuredReply> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -62,8 +74,8 @@ export async function generateStructuredReply(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
+      model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
+      max_tokens: resolveMaxTokens(options.maxTokens),
       system: systemPrompt,
       messages,
       tools: [

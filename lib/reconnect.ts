@@ -20,6 +20,7 @@ import {
 } from "./store";
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
+import { buildEventHistory } from "./llm-context";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -71,14 +72,10 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (memoryHint) systemPromptParts.push(`[먼저 연락할 때 떠올릴 수 있는 기억]\n${memoryHint}`);
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const history: LLMMessage[] = session.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-12)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-  history.push({ role: "user", content: buildReconnectTrigger(mood.elapsedMs, mood.state) });
+  const history: LLMMessage[] = buildEventHistory(session.messages, buildReconnectTrigger(mood.elapsedMs, mood.state));
 
   try {
-    const structured = await generateStructuredReply(systemPrompt, history);
+    const structured = await generateStructuredReply(systemPrompt, history, { maxTokens: 360 });
     const now = Date.now();
 
     if (structured.message && structured.event?.type !== "deleted_message") {

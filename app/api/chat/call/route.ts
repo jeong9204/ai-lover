@@ -23,6 +23,7 @@ import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
+import { buildEventHistory } from "@/lib/llm-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -89,15 +90,11 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const history: LLMMessage[] = session.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-12)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-  history.push({ role: "user", content: buildCallEndedTrigger(clampedDuration) });
+  const history: LLMMessage[] = buildEventHistory(session.messages, buildCallEndedTrigger(clampedDuration));
 
   let structured;
   try {
-    structured = await generateStructuredReply(systemPrompt, history);
+    structured = await generateStructuredReply(systemPrompt, history, { maxTokens: 360 });
   } catch (err) {
     return NextResponse.json(
       { sessionId: session.id, callEndedMessage, error: err instanceof Error ? err.message : "LLM 호출 실패" },

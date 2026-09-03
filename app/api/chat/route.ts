@@ -36,6 +36,7 @@ import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
+import { buildChatHistory } from "@/lib/llm-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -153,15 +154,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const history: LLMMessage[] = session.messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-12)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-  history.push({ role: "user", content: message });
+  const history: LLMMessage[] = buildChatHistory(session.messages, message);
 
   let structured;
   try {
-    structured = await generateStructuredReply(systemPrompt, history);
+    structured = await generateStructuredReply(systemPrompt, history, { maxTokens: 480 });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "LLM 호출 실패" },
