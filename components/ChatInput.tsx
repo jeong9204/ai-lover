@@ -42,7 +42,7 @@ export function ChatInput({
         <textarea
           ref={inputRef}
           rows={1}
-          className="max-h-[4.8rem] min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border px-4 py-2 text-base leading-snug outline-none focus:border-yellow-400 sm:text-sm"
+          className="max-h-[calc(4.125em+1rem)] min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border px-4 py-2 text-base leading-snug outline-none focus:border-yellow-400 sm:text-sm"
           placeholder="메시지를 입력하세요"
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
