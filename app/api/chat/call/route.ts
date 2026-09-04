@@ -9,6 +9,7 @@ import {
   updateSession,
   countMessagesToday,
   getDailyMessageLimit,
+  getFeedbackBonusCountToday,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -58,10 +59,14 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     getDailyMessageLimit(session.id),
   ]);
   if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
+    const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
+    const canRequestFeedbackBonus = feedbackBonusCount === 0;
     return NextResponse.json(
       {
-        error: "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요.",
-        canRequestFeedbackBonus: true,
+        error: canRequestFeedbackBonus
+          ? "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요."
+          : "오늘 추가 대화 횟수까지 다 썼어요. 내일 다시 이야기해요!",
+        canRequestFeedbackBonus,
         dailyMessageCount: messageCountBeforeCall,
         dailyMessageLimit,
       },

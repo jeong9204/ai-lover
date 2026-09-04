@@ -9,6 +9,8 @@ import {
   loadPushSubscriptions,
   deletePushSubscription,
   listSessionsNeedingPresenceCheck,
+  countMessagesToday,
+  getDailyMessageLimit,
 } from "@/lib/store";
 import { attemptReconnect } from "@/lib/reconnect";
 import { sendPushNotification } from "@/lib/push";
@@ -29,6 +31,12 @@ export async function POST(req: NextRequest) {
     checked += 1;
     const result = await getOrCreateSession(sessionId);
     if (result.status === "error") continue;
+
+    const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
+      countMessagesToday(sessionId),
+      getDailyMessageLimit(sessionId),
+    ]);
+    if (dailyMessageCount >= dailyMessageLimit) continue;
 
     const reconnect = await attemptReconnect(result.session);
     if (!reconnect?.reconnectMessage) continue;

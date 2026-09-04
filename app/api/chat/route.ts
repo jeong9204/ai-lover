@@ -7,6 +7,7 @@ import {
   updateSession,
   countMessagesToday,
   getDailyMessageLimit,
+  getFeedbackBonusCountToday,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -63,11 +64,13 @@ export async function GET(req: NextRequest) {
     const { session } = result;
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
     const dailyState = await getOrCreateCharacterDailyState(session.id);
-    const reconnect = await attemptReconnect(session);
+    const devMode = isDeveloperRequest(req);
     const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
       countMessagesToday(session.id),
       getDailyMessageLimit(session.id),
     ]);
+    const hitDailyLimit = !devMode && dailyMessageCount >= dailyMessageLimit;
+    const reconnect = hitDailyLimit ? null : await attemptReconnect(session);
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
     );
@@ -81,7 +84,7 @@ export async function GET(req: NextRequest) {
       characterName: session.characterName,
       personaType: session.personaType,
       dailyState,
-      devMode: isDeveloperRequest(req),
+      devMode,
       dailyMessageCount,
       dailyMessageLimit,
     });
@@ -119,6 +122,26 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const devMode = isDeveloperRequest(req);
   const mood = computeMood(session.lastMessageAt, presenceContext(session));
   const dailyState = await getOrCreateCharacterDailyState(session.id);
+  const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
+    countMessagesToday(session.id),
+    getDailyMessageLimit(session.id),
+  ]);
+  if (!devMode && dailyMessageCount >= dailyMessageLimit) {
+    const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
+    const canRequestFeedbackBonus = feedbackBonusCount === 0;
+    return NextResponse.json(
+      {
+        error: canRequestFeedbackBonus
+          ? "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요."
+          : "오늘 추가 대화 횟수까지 다 썼어요. 내일 다시 이야기해요!",
+        canRequestFeedbackBonus,
+        dailyMessageCount,
+        dailyMessageLimit,
+      },
+      { status: 429 }
+    );
+  }
+
   const localShortReactionReply = buildLocalShortReactionReply(
     message,
     session.personaType,
@@ -171,22 +194,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       dailyMessageCount: await countMessagesToday(session.id),
       dailyMessageLimit: await getDailyMessageLimit(session.id),
     });
-  }
-
-  const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
-    countMessagesToday(session.id),
-    getDailyMessageLimit(session.id),
-  ]);
-  if (!devMode && dailyMessageCount >= dailyMessageLimit) {
-    return NextResponse.json(
-      {
-        error: "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요.",
-        canRequestFeedbackBonus: true,
-        dailyMessageCount,
-        dailyMessageLimit,
-      },
-      { status: 429 }
-    );
   }
 
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당
