@@ -39,6 +39,7 @@ import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
 import { buildChatHistory, buildConversationSummaryHint } from "@/lib/llm-context";
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
+import { shouldAcceptConfessionEnding } from "@/lib/confession";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -113,7 +114,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const localShortReactionReply = buildLocalShortReactionReply(
     message,
     session.personaType,
-    `${session.id}:${session.messages.length}`
+    `${session.id}:${session.messages.length}`,
+    session.messages
+      .filter((m) => m.role === "assistant")
+      .slice(-3)
+      .map((m) => m.content)
   );
 
   if (localShortReactionReply) {
@@ -219,7 +224,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   // 이미 고백이 끝난 세션이면 LLM이 event를 또 confession_ending으로 표시해도 무시한다 —
   // 매 턴 "연인이 됐어요" 배너가 반복되는 걸 막는 서버 쪽 안전장치 (프롬프트만으로는 100% 못 막음).
-  const justConfessed = structured.event?.type === "confession_ending" && !session.confessedAt;
+  const justConfessed = shouldAcceptConfessionEnding({
+    requestedEvent: structured.event?.type === "confession_ending",
+    alreadyConfessed: Boolean(session.confessedAt),
+    relationshipScore: session.relationshipScore,
+    userMessage: message,
+    assistantMessage: structured.message,
+  });
   const canCreateMeetup = isExplicitMeetupRequest(message);
   const shouldCreateMeetup =
     canCreateMeetup &&
@@ -276,6 +287,10 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  const persistedEventType =
+    replyEventType ?? (structured.event?.type === "deleted_message" ? "deleted_message" : null);
+  const responseEvent = persistedEventType ? { type: persistedEventType } : null;
+
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage =
     justConfessed || session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
@@ -291,7 +306,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   const milestones = milestonesFromTurn({
     emotion: structured.emotion,
-    eventType: replyEventType ?? structured.event?.type ?? null,
+    eventType: persistedEventType,
     userMessage: message,
     assistantMessage: structured.message,
   });
@@ -300,7 +315,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (structured.memory) {
     const memoryType = inferMemoryType({
       emotion: structured.emotion,
-      eventType: replyEventType ?? structured.event?.type ?? null,
+      eventType: persistedEventType,
       memory: structured.memory,
     });
     await appendMemory(session.id, structured.memory, memoryType);
@@ -311,7 +326,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     characterName: session.characterName,
     personaType: session.personaType,
     reply: structured.message,
-    event: structured.event,
+    event: responseEvent,
     mood: mood.state,
     relationshipStage,
     isJealous,

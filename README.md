@@ -37,6 +37,7 @@ lib/
 public/sw.js    Service Worker — push 이벤트 수신 시 알림 표시
 scripts/reconnect-cron.mjs   로컬 개발용 트리거 스크립트 (npm run cron)
 db/migrations/  Supabase 스키마 (0001_init.sql ~ 0010_meetup_event.sql)
+db/maintenance/ 운영 점검/테스트 데이터 정리용 SQL
 ```
 
 `lib/` 아래 로직은 Next.js에 종속되지 않도록 순수 함수 위주로 작성했습니다.
@@ -155,3 +156,4 @@ LLM에 매번 다시 보내는 문맥입니다.
 - 실제 브라우저 푸시 알림은 구현했지만, 스케줄러(cron)는 로컬 스크립트(`scripts/reconnect-cron.mjs`)로
   대체 — 진짜 서비스라면 Vercel Cron 등 관리형 스케줄러로 교체 필요. 이 스크립트나 `npm run dev`가
   실행 중이지 않으면 백그라운드 알림은 오지 않음
+- 운영 점검/정리 SQL은 `db/maintenance/`에 두되, 삭제 쿼리는 반드시 DRY RUN 결과를 먼저 확인한 뒤 실행
