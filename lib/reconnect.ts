@@ -21,6 +21,7 @@ import {
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
 import { buildConversationSummaryHint, buildEventHistory } from "./llm-context";
+import { buildCommitmentPromptHint } from "./commitments";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -60,6 +61,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   const spontaneousMemory = pickSpontaneousMemory(session.memories);
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
+  const commitmentHint = buildCommitmentPromptHint(session.commitments);
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
@@ -70,6 +72,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (emotionHint) systemPromptParts.push(emotionHint);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   if (memoryHint) systemPromptParts.push(`[먼저 연락할 때 떠올릴 수 있는 기억]\n${memoryHint}`);
+  if (commitmentHint) systemPromptParts.push(commitmentHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const systemPrompt = systemPromptParts.join("\n\n");

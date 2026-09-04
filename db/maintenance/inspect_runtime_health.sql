@@ -14,6 +14,7 @@ where table_schema = 'public'
     'messages',
     'memories',
     'relationship_milestones',
+    'relationship_commitments',
     'character_daily_states',
     'push_subscriptions',
     'feedback_bonus_requests'
@@ -28,6 +29,8 @@ union all
 select 'memories', count(*) from memories
 union all
 select 'relationship_milestones', count(*) from relationship_milestones
+union all
+select 'relationship_commitments', count(*) from relationship_commitments
 union all
 select 'character_daily_states', count(*) from character_daily_states
 union all
@@ -52,7 +55,22 @@ from messages
 group by event_type
 order by row_count desc;
 
--- 5) 오늘 피드백 보너스 요청 샘플
+-- 5) 아직 이어지는 약속/계획 샘플
+select
+  session_id,
+  title,
+  detail,
+  owner,
+  due_label,
+  status,
+  source_message,
+  created_at
+from relationship_commitments
+where status = 'pending'
+order by created_at desc
+limit 50;
+
+-- 6) 오늘 피드백 보너스 요청 샘플
 select
   session_id,
   date_key,
@@ -69,7 +87,7 @@ from feedback_bonus_requests
 order by created_at desc
 limit 50;
 
--- 6) 고백 엔딩 메시지와 confessed_at이 어긋난 세션 후보
+-- 7) 고백 엔딩 메시지와 confessed_at이 어긋난 세션 후보
 select
   s.id,
   s.relationship_stage,

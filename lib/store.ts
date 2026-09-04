@@ -61,6 +61,25 @@ export interface Milestone {
   createdAt: number;
 }
 
+export interface Commitment {
+  id: string;
+  title: string;
+  detail: string | null;
+  owner: "user" | "assistant" | "shared";
+  dueLabel: string | null;
+  status: "pending" | "done" | "cancelled";
+  sourceMessage: string | null;
+  createdAt: number;
+}
+
+export interface CommitmentDraft {
+  title: string;
+  detail?: string | null;
+  owner: Commitment["owner"];
+  dueLabel?: string | null;
+  sourceMessage?: string | null;
+}
+
 export interface CharacterDailyState {
   dateKey: string;
   mood: string;
@@ -74,6 +93,7 @@ export interface SessionData {
   messages: ChatMessage[];
   memories: Memory[];
   milestones: Milestone[];
+  commitments: Commitment[];
   lastMessageAt: number | null;
   relationshipStage: string;
   relationshipScore: number;
@@ -122,13 +142,15 @@ function rowToSessionData(
   row: SessionRow,
   messages: ChatMessage[],
   memories: Memory[],
-  milestones: Milestone[]
+  milestones: Milestone[],
+  commitments: Commitment[]
 ): SessionData {
   return {
     id: row.id,
     messages,
     memories,
     milestones,
+    commitments,
     lastMessageAt: row.last_active_at ? new Date(row.last_active_at).getTime() : null,
     relationshipStage: row.relationship_stage,
     relationshipScore: row.relationship_score,
@@ -382,6 +404,26 @@ async function loadMilestones(sessionId: string): Promise<Milestone[]> {
   }));
 }
 
+async function loadCommitments(sessionId: string): Promise<Commitment[]> {
+  const { data, error } = await supabase
+    .from("relationship_commitments")
+    .select("id, title, detail, owner, due_label, status, source_message, created_at")
+    .eq("session_id", sessionId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return data.map((item) => ({
+    id: String(item.id),
+    title: item.title,
+    detail: item.detail,
+    owner: (item.owner as Commitment["owner"] | null) ?? "shared",
+    dueLabel: item.due_label,
+    status: (item.status as Commitment["status"] | null) ?? "pending",
+    sourceMessage: item.source_message,
+    createdAt: new Date(item.created_at).getTime(),
+  }));
+}
+
 /**
  * sessionId가 없으면 새 세션을 만든다.
  * sessionId가 있는데 DB에 없으면(오래된 localStorage 등) 새 세션을 만든다 — 덮어쓰지 않음.
@@ -395,12 +437,13 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
     if (error) return { status: "error" };
 
     if (row) {
-      const [messages, memories, milestones] = await Promise.all([
+      const [messages, memories, milestones, commitments] = await Promise.all([
         loadMessages(row.id),
         loadMemories(row.id),
         loadMilestones(row.id),
+        loadCommitments(row.id),
       ]);
-      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones) };
+      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones, commitments) };
     }
     // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
   }
@@ -408,7 +451,7 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
   const { row, error } = await createSessionRow();
 
   if (error || !row) return { status: "error" };
-  return { status: "ok", isNew: true, session: rowToSessionData(row, [], [], []) };
+  return { status: "ok", isNew: true, session: rowToSessionData(row, [], [], [], []) };
 }
 
 export async function appendInitialMessageIfNeeded(session: SessionData): Promise<ChatMessage | null> {
@@ -550,6 +593,42 @@ export async function appendRelationshipMilestone(
       },
       { onConflict: "session_id,type", ignoreDuplicates: true }
     );
+}
+
+async function hasDuplicateCommitment(sessionId: string, draft: CommitmentDraft): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("relationship_commitments")
+    .select("title, due_label, status, created_at")
+    .eq("session_id", sessionId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error || !data) return false;
+
+  const normalizedTitle = normalizeMemoryText(draft.title);
+  const normalizedDue = normalizeMemoryText(draft.dueLabel ?? "");
+  return data.some((item) => {
+    const sameTitle = normalizeMemoryText(item.title) === normalizedTitle;
+    const sameDue = normalizeMemoryText(item.due_label ?? "") === normalizedDue;
+    return sameTitle && sameDue;
+  });
+}
+
+export async function appendCommitment(
+  sessionId: string,
+  draft: CommitmentDraft | undefined
+): Promise<void> {
+  if (!draft) return;
+  if (await hasDuplicateCommitment(sessionId, draft)) return;
+
+  await supabase.from("relationship_commitments").insert({
+    session_id: sessionId,
+    title: draft.title,
+    detail: draft.detail ?? null,
+    owner: draft.owner,
+    due_label: draft.dueLabel ?? null,
+    source_message: draft.sourceMessage ?? null,
+  });
 }
 
 export async function getOrCreateCharacterDailyState(sessionId: string): Promise<CharacterDailyState | null> {

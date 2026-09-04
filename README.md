@@ -22,6 +22,7 @@ lib/
   mood.ts       Presence — 경과 시간 + 직전 대화 분위기 + 관계 단계 → mood 계산
   jealousy.ts   Hidden Emotion — 감정별 서브텍스트 힌트 + 키워드 보조 신호
   memory.ts     기억 후보 선별(키워드 겹침 + 최근성) / User·Relationship Memory 프롬프트 힌트 생성
+  commitments.ts  영화표/맛집/약속처럼 이어져야 하는 계획성 기억 추출 + 프롬프트 힌트 생성
   milestones.ts 관계 milestone 후보 생성 + memory type 추론
   daily-state.ts 하루 하나의 캐릭터 생활 상태 생성 + 프롬프트 힌트 생성
   profile-status.ts 프로필 모달용 상태 메시지/오늘 상태 문구 생성
@@ -32,11 +33,11 @@ lib/
   schema.ts     Zod 스키마(구조화 출력 검증) + 관계 점수 → 관계 단계 텍스트 매핑
   llm.ts        Anthropic API 호출 (fetch + tool_choice 강제, SDK 의존성 없음)
   push.ts       web-push 래핑 (VAPID 서명, 발송)
-  store.ts      Supabase 기반 세션/메시지/기억/관계 milestone/구독 저장
+  store.ts      Supabase 기반 세션/메시지/기억/약속/관계 milestone/구독 저장
   supabase.ts   서버 전용 Supabase 클라이언트 (service_role, 클라이언트 컴포넌트에서 import 금지)
 public/sw.js    Service Worker — push 이벤트 수신 시 알림 표시
 scripts/reconnect-cron.mjs   로컬 개발용 트리거 스크립트 (npm run cron)
-db/migrations/  Supabase 스키마 (0001_init.sql ~ 0011_feedback_bonus.sql)
+db/migrations/  Supabase 스키마 (0001_init.sql ~ 0012_relationship_commitments.sql)
 db/maintenance/ 운영 점검/테스트 데이터 정리용 SQL
 ```
 
@@ -108,6 +109,8 @@ npm run cron
    실제 메시지 timestamp 기준으로 화면에서만 표시됩니다.
 4. 대화 중 "그 영화 보고 싶었는데" 같은 말을 흘려두고, 나중에 질투 상황을 만들어보면 캐릭터가 그
    기억을 지금 감정과 연결해서 꺼내는지 확인할 수 있습니다. 같은 기억은 간단한 중복 검사로 반복 저장을 줄입니다.
+   "금요일 영화표는 내가 잡을게", "맛집은 네가 골라와"처럼 날짜/역할이 있는 계획성 대화는 일반 기억과
+   별개로 약속 목록에 저장되어, 이후 관련 화제가 나올 때 더 안정적으로 이어집니다.
 5. "하늘 사진 보여줘", "퇴근길 사진 있으면 보여줘"처럼 명확히 사진을 요청하면 캐릭터가 사진 메시지를 보냅니다.
    단순히 "비 오네ㅠㅠ"처럼 소재만 언급한 경우에는 사진을 남발하지 않고 텍스트로만 반응합니다.
 6. "오늘 잠깐 만날래?", "이따 보자", "공원에서 보자", "산책 가자"처럼 실제 만남을 제안하고
@@ -132,6 +135,7 @@ npm run cron
 - 재접속 선톡/통화 후속 같은 이벤트성 답장은 최근 대화 6개만 전달합니다.
 - 최근 30개 메시지는 전체를 다시 보내지 않고, 유저가 최근 꺼낸 말/캐릭터 반응/최근 이벤트를 3줄 안팎의
   요약 힌트로 압축해 함께 전달합니다.
+- 아직 끝나지 않은 약속/계획은 최근 메시지 개수와 별개로 짧은 힌트 형태로 함께 전달합니다.
 - 긴 메시지는 프롬프트에 넣기 전에 최대 500자까지 압축합니다.
 - 출력 상한은 기본 480 토큰, 이벤트성 답장은 360 토큰으로 제한합니다.
 - `ㅋㅋㅋ`, `응`, `오키`, `아하`처럼 내용이 거의 없는 짧은 리액션은 LLM 호출 없이 로컬 답장으로 처리합니다.

@@ -3,6 +3,7 @@ import {
   getOrCreateSession,
   appendMessage,
   appendMemory,
+  appendCommitment,
   updateSession,
   countMessagesToday,
   getDailyMessageLimit,
@@ -40,6 +41,7 @@ import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-
 import { buildChatHistory, buildConversationSummaryHint } from "@/lib/llm-context";
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { shouldAcceptConfessionEnding } from "@/lib/confession";
+import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -216,6 +218,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (isJealous) systemPromptParts.push(`[참고 신호]\n${JEALOUSY_PROMPT_HINT}`);
   const memoryHint = buildMemoryPromptHint(relevantMemories);
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
+  const commitmentHint = buildCommitmentPromptHint(session.commitments);
+  if (commitmentHint) systemPromptParts.push(commitmentHint);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
@@ -343,6 +347,12 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     });
     await appendMemory(session.id, structured.memory, memoryType);
   }
+
+  const commitments = extractCommitmentsFromTurn({
+    userMessage: message,
+    assistantMessage: structured.message,
+  });
+  await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
 
   return NextResponse.json({
     sessionId: session.id,
