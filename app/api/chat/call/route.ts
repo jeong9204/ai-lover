@@ -53,7 +53,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const { session } = result;
 
   const devMode = isDeveloperRequest(req);
-  if (!devMode && (await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+  const messageCountBeforeCall = await countMessagesToday(session.id);
+  if (!devMode && messageCountBeforeCall >= DAILY_MESSAGE_LIMIT) {
     return NextResponse.json(
       { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
       { status: 429 }
@@ -100,7 +101,13 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     structured = await generateStructuredReply(systemPrompt, history, { maxTokens: 360 });
   } catch (err) {
     return NextResponse.json(
-      { sessionId: session.id, callEndedMessage, error: err instanceof Error ? err.message : "LLM 호출 실패" },
+      {
+        sessionId: session.id,
+        callEndedMessage,
+        error: err instanceof Error ? err.message : "LLM 호출 실패",
+        dailyMessageCount: await countMessagesToday(session.id),
+        dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+      },
       { status: 200 }
     );
   }
@@ -153,5 +160,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     relationshipStage,
     devMode,
     dailyState,
+    dailyMessageCount: await countMessagesToday(session.id),
+    dailyMessageLimit: DAILY_MESSAGE_LIMIT,
   });
 }

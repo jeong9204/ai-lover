@@ -41,6 +41,7 @@ export interface PhotoAttachment {
 
 export interface MessageMetadata {
   photo?: PhotoAttachment;
+  localReply?: boolean;
 }
 
 export interface Memory {
@@ -186,15 +187,27 @@ function startOfTodayKST(): Date {
   return new Date(kstMidnight - KST_OFFSET_MS);
 }
 
-/** 이 세션이 오늘(KST 기준) 주고받은 메시지 수 — LLM 호출 한도 체크용. */
+/** 이 세션이 오늘(KST 기준) LLM 호출을 유발한 유저 턴 수 — 한도 체크용. */
 export async function countMessagesToday(sessionId: string): Promise<number> {
-  const { count, error } = await supabase
+  const { data, error } = await supabase
+    .from("messages")
+    .select("metadata")
+    .eq("session_id", sessionId)
+    .eq("role", "user")
+    .gte("created_at", startOfTodayKST().toISOString());
+
+  if (!error && data) {
+    return data.filter((row) => (row.metadata as MessageMetadata | null)?.localReply !== true).length;
+  }
+
+  const fallback = await supabase
     .from("messages")
     .select("id", { count: "exact", head: true })
     .eq("session_id", sessionId)
+    .eq("role", "user")
     .gte("created_at", startOfTodayKST().toISOString());
-  if (error) return 0;
-  return count ?? 0;
+  if (fallback.error) return 0;
+  return fallback.count ?? 0;
 }
 
 async function loadMessages(sessionId: string): Promise<ChatMessage[]> {

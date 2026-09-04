@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
     const dailyState = await getOrCreateCharacterDailyState(session.id);
     const reconnect = await attemptReconnect(session);
+    const dailyMessageCount = await countMessagesToday(session.id);
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
     );
@@ -76,6 +77,8 @@ export async function GET(req: NextRequest) {
       personaType: session.personaType,
       dailyState,
       devMode: isDeveloperRequest(req),
+      dailyMessageCount,
+      dailyMessageLimit: DAILY_MESSAGE_LIMIT,
     });
   } catch (err) {
     return NextResponse.json(
@@ -123,13 +126,19 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
 
   if (localShortReactionReply) {
     const now = Date.now();
-    await appendMessage(session.id, { role: "user", content: message, timestamp: now });
+    await appendMessage(session.id, {
+      role: "user",
+      content: message,
+      timestamp: now,
+      metadata: { localReply: true },
+    });
 
     const replyMessage: ChatMessage = {
       role: "assistant",
       content: localShortReactionReply.message,
       timestamp: now + 1,
       eventType: null,
+      metadata: { localReply: true },
     };
     await appendMessage(session.id, replyMessage);
 
@@ -154,6 +163,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       photoMessage: null,
       extraMessages: [],
       localReply: true,
+      dailyMessageCount: await countMessagesToday(session.id),
+      dailyMessageLimit: DAILY_MESSAGE_LIMIT,
     });
   }
 
@@ -334,5 +345,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     dailyState,
     photoMessage,
     extraMessages,
+    dailyMessageCount: await countMessagesToday(session.id),
+    dailyMessageLimit: DAILY_MESSAGE_LIMIT,
   });
 }

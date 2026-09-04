@@ -161,6 +161,20 @@ export default function Home() {
     setLimitNotice(null);
   }
 
+  function syncLimitNoticeFromUsage(data: { dailyMessageCount?: number; dailyMessageLimit?: number; devMode?: boolean }) {
+    if (data.devMode) {
+      clearLimitNotice();
+      return;
+    }
+    if (
+      typeof data.dailyMessageCount === "number" &&
+      typeof data.dailyMessageLimit === "number" &&
+      data.dailyMessageCount < data.dailyMessageLimit
+    ) {
+      clearLimitNotice();
+    }
+  }
+
   async function loadSession() {
     sessionIdRef.current = localStorage.getItem(SESSION_STORAGE_KEY);
     try {
@@ -181,7 +195,7 @@ export default function Home() {
       setDailyState(data.dailyState ?? null);
       const nextDevMode = Boolean(data.devMode);
       setDevMode(nextDevMode);
-      if (nextDevMode) clearLimitNotice();
+      syncLimitNoticeFromUsage(data);
       setLoadError(null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -388,6 +402,7 @@ export default function Home() {
           setDailyState(data.dailyState ?? dailyState);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
+        syncLimitNoticeFromUsage(data);
       } catch {
         // 조용히 무시
       }
@@ -509,8 +524,8 @@ export default function Home() {
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
-      if (res.ok && limitNotice) clearLimitNotice();
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
+      syncLimitNoticeFromUsage(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
     } finally {
@@ -595,7 +610,7 @@ export default function Home() {
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
-      if (res.ok && limitNotice) clearLimitNotice();
+      syncLimitNoticeFromUsage(data);
       if (data.error) setError(data.error);
     } catch (e) {
       setError(e instanceof Error ? e.message : "통화 종료 처리에 실패했습니다.");
