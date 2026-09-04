@@ -29,14 +29,14 @@ export function CharacterProfileModal({
   const image = characterProfileImage(characterName);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 px-3 py-4 sm:items-center">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 px-3 py-3 sm:items-center sm:py-4">
       <button
         type="button"
         aria-label="프로필 닫기"
         className="absolute inset-0"
         onClick={onClose}
       />
-      <section className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-5 text-gray-900 shadow-xl">
+      <section className="relative z-10 max-h-[calc(100dvh-1.5rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 text-gray-900 shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:p-5">
         <button
           type="button"
           onClick={onClose}
@@ -48,7 +48,7 @@ export function CharacterProfileModal({
 
         {image ? (
           <div className="-mx-1 mb-4 mt-9 overflow-hidden rounded-xl bg-gray-100">
-            <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
+            <img src={image.src} alt={image.alt} className="aspect-[4/3] max-h-[42dvh] w-full object-cover sm:max-h-none" />
           </div>
         ) : null}
 
