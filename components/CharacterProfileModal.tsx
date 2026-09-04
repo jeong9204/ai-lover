@@ -40,10 +40,10 @@ export function CharacterProfileModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-3 text-xl leading-none text-gray-400"
+          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-3xl font-light leading-none text-gray-700 shadow-md transition hover:bg-gray-50 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
           aria-label="프로필 닫기"
         >
-          x
+          ×
         </button>
 
         {image ? (
