@@ -69,10 +69,29 @@ function readStoredLimitNotice(): StoredLimitNotice | null {
   return null;
 }
 
+function ChatBootSkeleton() {
+  return (
+    <div className="space-y-4 px-2 pt-8" aria-label="대화 불러오는 중">
+      <div className="h-4 w-24 animate-pulse rounded-full bg-white/30" />
+      <div className="flex items-start gap-2">
+        <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-white/50" />
+        <div className="space-y-2">
+          <div className="h-10 w-52 animate-pulse rounded-2xl bg-white/70" />
+          <div className="h-10 w-36 animate-pulse rounded-2xl bg-white/60" />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <div className="h-10 w-48 animate-pulse rounded-2xl bg-[#fee500]/70" />
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [mood, setMood] = useState<string>("calm");
   const [relationshipStage, setRelationshipStage] = useState<string>("오래된 친구");
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +216,7 @@ export default function Home() {
 
   async function loadSession() {
     sessionIdRef.current = localStorage.getItem(SESSION_STORAGE_KEY);
+    setSessionLoading(true);
     try {
       const res = await fetchWithSession("/api/chat");
       const data = await res.json();
@@ -219,6 +239,8 @@ export default function Home() {
       setLoadError(null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSessionLoading(false);
     }
   }
 
@@ -359,7 +381,7 @@ export default function Home() {
   }
 
   async function resetSession() {
-    if (resetting || loading || callEnding) return;
+    if (resetting || loading || sessionLoading || callEnding) return;
     const ok = window.confirm("지금 대화를 초기화하고 처음부터 다시 시작할까요?");
     if (!ok) return;
 
@@ -490,11 +512,11 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, sessionLoading]);
 
   useEffect(() => {
-    if (!loading) inputRef.current?.focus();
-  }, [loading]);
+    if (!loading && !sessionLoading) inputRef.current?.focus();
+  }, [loading, sessionLoading]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -505,7 +527,7 @@ export default function Home() {
 
   async function sendMessage() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || sessionLoading) return;
     setError(null);
     setInput("");
     setLaughterGateOpen(false);
@@ -590,7 +612,7 @@ export default function Home() {
   // "이어쓸래 / 넘어갈래"를 먼저 물어본다 — 아직 할 말이 남았는데 무심코 웃음만 보내고 끝나버리는 걸 막기 위해서.
   function requestSend() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || sessionLoading) return;
     if (isLaughterOnlyMessage(text)) {
       setLaughterGateOpen(true);
       return;
@@ -609,7 +631,7 @@ export default function Home() {
   }
 
   function startCall() {
-    if (activeCall) return;
+    if (activeCall || sessionLoading) return;
     setCallSeconds(0);
     setActiveCall(true);
     callIntervalRef.current = setInterval(() => {
@@ -689,7 +711,7 @@ export default function Home() {
         pushSupported={pushSupported}
         pushSubscribed={pushSubscribed}
         resetting={resetting}
-        loading={loading}
+        loading={loading || sessionLoading}
         callEnding={callEnding}
         devMode={devMode}
         onTogglePushSubscription={togglePushSubscription}
@@ -709,7 +731,8 @@ export default function Home() {
             {loadError}
           </p>
         )}
-        {!loadError && userName === null && !nameSkipped && (
+        {!loadError && sessionLoading && <ChatBootSkeleton />}
+        {!loadError && !sessionLoading && userName === null && !nameSkipped && (
           <NamePrompt
             characterName={characterName}
             nameInput={nameInput}
@@ -719,18 +742,20 @@ export default function Home() {
             onSkipName={skipName}
           />
         )}
-        <MessageList
-          messages={messages}
-          characterName={characterName}
-          personaType={personaType}
-          loading={loading}
-          callEnding={callEnding}
-          activeCall={activeCall}
-          error={error}
-          bottomRef={bottomRef}
-          onStartCall={startCall}
-          onOpenProfile={() => setProfileOpen(true)}
-        />
+        {!sessionLoading && (
+          <MessageList
+            messages={messages}
+            characterName={characterName}
+            personaType={personaType}
+            loading={loading}
+            callEnding={callEnding}
+            activeCall={activeCall}
+            error={error}
+            bottomRef={bottomRef}
+            onStartCall={startCall}
+            onOpenProfile={() => setProfileOpen(true)}
+          />
+        )}
         {limitNotice && canRequestFeedbackBonus && (
           <LimitFeedbackPanel
             message={limitNotice}
@@ -748,7 +773,7 @@ export default function Home() {
 
       <ChatInput
         input={input}
-        loading={loading}
+        loading={loading || sessionLoading}
         laughterGateOpen={laughterGateOpen}
         inputRef={inputRef}
         onInputChange={setInput}
