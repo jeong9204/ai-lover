@@ -40,14 +40,14 @@ export function CharacterProfileModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-3xl font-light leading-none text-gray-700 shadow-md transition hover:bg-gray-50 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+          className="absolute right-5 top-4 z-20 flex h-9 w-9 items-center justify-center text-4xl font-light leading-none text-gray-950 transition hover:opacity-70 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
           aria-label="프로필 닫기"
         >
-          ×
+          <span className="-mt-1 block leading-none">×</span>
         </button>
 
         {image ? (
-          <div className="-mx-1 -mt-1 mb-4 overflow-hidden rounded-xl bg-gray-100">
+          <div className="-mx-1 mb-4 mt-9 overflow-hidden rounded-xl bg-gray-100">
             <img src={image.src} alt={image.alt} className="aspect-[4/3] w-full object-cover" />
           </div>
         ) : null}
