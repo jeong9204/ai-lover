@@ -7,6 +7,7 @@ import { CallOverlay } from "@/components/CallOverlay";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { CharacterProfileModal } from "@/components/CharacterProfileModal";
+import { LimitFeedbackPanel } from "@/components/LimitFeedbackPanel";
 import { MessageList } from "@/components/MessageList";
 import { NamePrompt } from "@/components/NamePrompt";
 import { Msg } from "@/components/chat-types";
@@ -20,6 +21,7 @@ const LIMIT_NOTICE_STORAGE_KEY = "ai-lover-limit-notice";
 interface StoredLimitNotice {
   dateKey: string;
   message: string;
+  canRequestFeedbackBonus?: boolean;
 }
 
 function sleep(ms: number) {
@@ -52,13 +54,13 @@ function koreanTodayKey() {
   return `${year}-${month}-${day}`;
 }
 
-function readStoredLimitNotice(): string | null {
+function readStoredLimitNotice(): StoredLimitNotice | null {
   const raw = localStorage.getItem(LIMIT_NOTICE_STORAGE_KEY);
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as StoredLimitNotice;
-    if (parsed.dateKey === koreanTodayKey() && parsed.message) return parsed.message;
+    if (parsed.dateKey === koreanTodayKey() && parsed.message) return parsed;
   } catch {
     // 잘못 저장된 값은 아래에서 정리한다.
   }
@@ -93,6 +95,10 @@ export default function Home() {
   const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [limitNotice, setLimitNotice] = useState<string | null>(null);
+  const [canRequestFeedbackBonus, setCanRequestFeedbackBonus] = useState(false);
+  const [feedbackInput, setFeedbackInput] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -147,18 +153,32 @@ export default function Home() {
     }, durationMs);
   }
 
-  function showLimitNotice(message: string) {
+  function restoreLimitNotice() {
+    const stored = readStoredLimitNotice();
+    setLimitNotice(stored?.message ?? null);
+    setCanRequestFeedbackBonus(Boolean(stored?.canRequestFeedbackBonus));
+  }
+
+  function showLimitNotice(message: string, canRequestBonus = false) {
     localStorage.setItem(
       LIMIT_NOTICE_STORAGE_KEY,
-      JSON.stringify({ dateKey: koreanTodayKey(), message } satisfies StoredLimitNotice)
+      JSON.stringify({
+        dateKey: koreanTodayKey(),
+        message,
+        canRequestFeedbackBonus: canRequestBonus,
+      } satisfies StoredLimitNotice)
     );
     setLimitNotice(message);
+    setCanRequestFeedbackBonus(canRequestBonus);
+    setFeedbackError(null);
     setError(null);
   }
 
   function clearLimitNotice() {
     localStorage.removeItem(LIMIT_NOTICE_STORAGE_KEY);
     setLimitNotice(null);
+    setCanRequestFeedbackBonus(false);
+    setFeedbackError(null);
   }
 
   function syncLimitNoticeFromUsage(data: { dailyMessageCount?: number; dailyMessageLimit?: number; devMode?: boolean }) {
@@ -209,7 +229,7 @@ export default function Home() {
       localStorage.removeItem(DEV_MODE_STORAGE_KEY);
       devSecretRef.current = null;
       setDevMode(false);
-      setLimitNotice(readStoredLimitNotice());
+      restoreLimitNotice();
       params.delete("dev");
       window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
     } else if (devParam) {
@@ -220,7 +240,7 @@ export default function Home() {
     } else {
       devSecretRef.current = localStorage.getItem(DEV_MODE_STORAGE_KEY);
     }
-    setLimitNotice(readStoredLimitNotice());
+    restoreLimitNotice();
     setNameSkipped(localStorage.getItem(NAME_SKIPPED_KEY) === "1");
     loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -379,6 +399,39 @@ export default function Home() {
     }
   }
 
+  async function submitFeedbackBonus() {
+    const content = feedbackInput.trim();
+    if (content.length < 10 || feedbackSubmitting) {
+      setFeedbackError("피드백을 10자 이상 적어주세요.");
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+    setFeedbackError(null);
+    try {
+      const res = await fetchWithSession("/api/feedback/bonus", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "피드백 저장에 실패했어요.");
+
+      setFeedbackInput("");
+      syncLimitNoticeFromUsage(data);
+      showTemporaryStatus(
+        data.status === "already_exists"
+          ? "오늘 피드백 보너스는 이미 적용돼 있어요."
+          : "피드백 고마워요. 오늘 20회 더 대화할 수 있어요.",
+        4500
+      );
+    } catch (e) {
+      setFeedbackError(e instanceof Error ? e.message : "피드백 저장에 실패했어요.");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
+
   // 탭을 열어둔 채 기다리면, 캐릭터가 먼저 말 걸었는지 조용히 주기적으로 확인한다.
   // (전송 중일 때는 건너뛰고, 실패해도 에러 배너 없이 조용히 무시 — 백그라운드 확인이라서)
   // 단, 탭이 안 보이는 동안(다른 탭으로 전환 / 창 최소화)은 폴링을 완전히 멈춘다 — 안 보이는
@@ -469,7 +522,7 @@ export default function Home() {
       if (!res.ok) {
         const message = data.error ?? "오류가 발생했습니다.";
         if (res.status === 429) {
-          showLimitNotice(message);
+          showLimitNotice(message, Boolean(data.canRequestFeedbackBonus));
           return;
         }
         throw new Error(message);
@@ -581,7 +634,7 @@ export default function Home() {
       if (!res.ok) {
         const message = data.error ?? "통화 종료 처리에 실패했습니다.";
         if (res.status === 429) {
-          showLimitNotice(message);
+          showLimitNotice(message, Boolean(data.canRequestFeedbackBonus));
           return;
         }
         throw new Error(message);
@@ -673,11 +726,24 @@ export default function Home() {
           loading={loading}
           callEnding={callEnding}
           activeCall={activeCall}
-          error={error ?? limitNotice}
+          error={error}
           bottomRef={bottomRef}
           onStartCall={startCall}
           onOpenProfile={() => setProfileOpen(true)}
         />
+        {limitNotice && canRequestFeedbackBonus && (
+          <LimitFeedbackPanel
+            message={limitNotice}
+            feedback={feedbackInput}
+            submitting={feedbackSubmitting}
+            error={feedbackError}
+            onFeedbackChange={setFeedbackInput}
+            onSubmit={submitFeedbackBonus}
+          />
+        )}
+        {limitNotice && !canRequestFeedbackBonus && (
+          <p className="rounded bg-red-100 px-3 py-2 text-xs text-red-700">{limitNotice}</p>
+        )}
       </section>
 
       <ChatInput

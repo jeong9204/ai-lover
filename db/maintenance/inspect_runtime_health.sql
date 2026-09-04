@@ -15,7 +15,8 @@ where table_schema = 'public'
     'memories',
     'relationship_milestones',
     'character_daily_states',
-    'push_subscriptions'
+    'push_subscriptions',
+    'feedback_bonus_requests'
   )
 order by table_name, ordinal_position;
 
@@ -30,7 +31,9 @@ select 'relationship_milestones', count(*) from relationship_milestones
 union all
 select 'character_daily_states', count(*) from character_daily_states
 union all
-select 'push_subscriptions', count(*) from push_subscriptions;
+select 'push_subscriptions', count(*) from push_subscriptions
+union all
+select 'feedback_bonus_requests', count(*) from feedback_bonus_requests;
 
 -- 3) 메시지 없는 세션 / 이름 없는 세션 / 연인 상태 세션 확인
 select
@@ -49,7 +52,24 @@ from messages
 group by event_type
 order by row_count desc;
 
--- 5) 고백 엔딩 메시지와 confessed_at이 어긋난 세션 후보
+-- 5) 오늘 피드백 보너스 요청 샘플
+select
+  session_id,
+  date_key,
+  bonus_count,
+  daily_message_count,
+  relationship_stage,
+  character_name,
+  persona_type,
+  left(content, 120) as feedback_preview,
+  left(last_user_message, 120) as last_user_message_preview,
+  left(last_assistant_message, 120) as last_assistant_message_preview,
+  created_at
+from feedback_bonus_requests
+order by created_at desc
+limit 50;
+
+-- 6) 고백 엔딩 메시지와 confessed_at이 어긋난 세션 후보
 select
   s.id,
   s.relationship_stage,

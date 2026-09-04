@@ -8,7 +8,7 @@ import {
   appendMessage,
   updateSession,
   countMessagesToday,
-  DAILY_MESSAGE_LIMIT,
+  getDailyMessageLimit,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -53,10 +53,18 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const { session } = result;
 
   const devMode = isDeveloperRequest(req);
-  const messageCountBeforeCall = await countMessagesToday(session.id);
-  if (!devMode && messageCountBeforeCall >= DAILY_MESSAGE_LIMIT) {
+  const [messageCountBeforeCall, dailyMessageLimit] = await Promise.all([
+    countMessagesToday(session.id),
+    getDailyMessageLimit(session.id),
+  ]);
+  if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
     return NextResponse.json(
-      { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
+      {
+        error: "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요.",
+        canRequestFeedbackBonus: true,
+        dailyMessageCount: messageCountBeforeCall,
+        dailyMessageLimit,
+      },
       { status: 429 }
     );
   }
@@ -106,7 +114,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
         callEndedMessage,
         error: err instanceof Error ? err.message : "LLM 호출 실패",
         dailyMessageCount: await countMessagesToday(session.id),
-        dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+        dailyMessageLimit: await getDailyMessageLimit(session.id),
       },
       { status: 200 }
     );
@@ -161,6 +169,6 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     devMode,
     dailyState,
     dailyMessageCount: await countMessagesToday(session.id),
-    dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+    dailyMessageLimit: await getDailyMessageLimit(session.id),
   });
 }

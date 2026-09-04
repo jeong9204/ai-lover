@@ -179,6 +179,7 @@ async function createSessionRow(): Promise<{ row: SessionRow | null; error: unkn
 // 인증 없이 누구나 세션을 만들 수 있는 구조라, LLM 호출을 유발하는 요청(채팅 전송/통화 종료)에
 // 세션당 하루 한도를 걸어둔다 — 안 걸면 스크립트로 두드렸을 때 Anthropic 비용이 무제한으로 늘어난다.
 export const DAILY_MESSAGE_LIMIT = 30;
+export const FEEDBACK_BONUS_MESSAGE_LIMIT = 20;
 
 function startOfTodayKST(): Date {
   const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -208,6 +209,56 @@ export async function countMessagesToday(sessionId: string): Promise<number> {
     .gte("created_at", startOfTodayKST().toISOString());
   if (fallback.error) return 0;
   return fallback.count ?? 0;
+}
+
+export async function getFeedbackBonusCountToday(sessionId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("feedback_bonus_requests")
+    .select("bonus_count")
+    .eq("session_id", sessionId)
+    .eq("date_key", koreanDateKey())
+    .maybeSingle();
+  if (error || !data) return 0;
+  return Number(data.bonus_count) || 0;
+}
+
+export async function getDailyMessageLimit(sessionId: string): Promise<number> {
+  return DAILY_MESSAGE_LIMIT + (await getFeedbackBonusCountToday(sessionId));
+}
+
+export async function saveFeedbackBonusRequest(
+  session: SessionData,
+  content: string,
+  dailyMessageCount: number
+): Promise<{ status: "created"; bonusCount: number } | { status: "already_exists"; bonusCount: number } | { status: "error" }> {
+  const dateKey = koreanDateKey();
+  const lastUserMessage = [...session.messages].reverse().find((m) => m.role === "user") ?? null;
+  const lastAssistantMessage = [...session.messages].reverse().find((m) => m.role === "assistant") ?? null;
+  const lastEvent = [...session.messages].reverse().find((m) => m.eventType) ?? null;
+
+  const { error } = await supabase.from("feedback_bonus_requests").insert({
+    session_id: session.id,
+    content,
+    bonus_count: FEEDBACK_BONUS_MESSAGE_LIMIT,
+    date_key: dateKey,
+    daily_message_count: dailyMessageCount,
+    total_message_count: session.messages.length,
+    relationship_stage: session.relationshipStage,
+    relationship_score: session.relationshipScore,
+    emotion: session.emotion,
+    emotion_intensity: session.emotionIntensity,
+    character_name: session.characterName,
+    persona_type: session.personaType,
+    last_user_message: lastUserMessage?.content ?? null,
+    last_assistant_message: lastAssistantMessage?.content ?? null,
+    last_event_type: lastEvent?.eventType ?? null,
+  });
+
+  if (!error) return { status: "created", bonusCount: FEEDBACK_BONUS_MESSAGE_LIMIT };
+  if (String((error as { code?: string }).code ?? "") === "23505") {
+    return { status: "already_exists", bonusCount: await getFeedbackBonusCountToday(session.id) };
+  }
+  return { status: "error" };
 }
 
 async function loadMessages(sessionId: string): Promise<ChatMessage[]> {

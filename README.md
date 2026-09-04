@@ -36,7 +36,7 @@ lib/
   supabase.ts   서버 전용 Supabase 클라이언트 (service_role, 클라이언트 컴포넌트에서 import 금지)
 public/sw.js    Service Worker — push 이벤트 수신 시 알림 표시
 scripts/reconnect-cron.mjs   로컬 개발용 트리거 스크립트 (npm run cron)
-db/migrations/  Supabase 스키마 (0001_init.sql ~ 0010_meetup_event.sql)
+db/migrations/  Supabase 스키마 (0001_init.sql ~ 0011_feedback_bonus.sql)
 db/maintenance/ 운영 점검/테스트 데이터 정리용 SQL
 ```
 
@@ -137,6 +137,8 @@ npm run cron
 - `ㅋㅋㅋ`, `응`, `오키`, `아하`처럼 내용이 거의 없는 짧은 리액션은 LLM 호출 없이 로컬 답장으로 처리합니다.
 - 일반 유저는 세션당 하루 30회로 LLM 호출성 유저 턴을 제한합니다. 한도 알림은 다음날 사용량이 리셋되면
   세션 로드/폴링 시 자동으로 사라집니다.
+- 한도에 도달한 사용자가 피드백을 남기면, 현재 관계 단계/감정/캐릭터/마지막 메시지 스냅샷과 함께 저장하고
+  해당 세션의 당일 한도를 20회 추가합니다.
 - 모델은 `ANTHROPIC_MODEL`, 기본 출력 상한은 `ANTHROPIC_MAX_TOKENS`로 운영 중 조정할 수 있습니다.
 
 Supabase에는 전체 메시지를 그대로 저장하므로 사용자가 보는 대화 기록은 줄어들지 않습니다. 줄이는 건 오직

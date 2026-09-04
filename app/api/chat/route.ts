@@ -5,7 +5,7 @@ import {
   appendMemory,
   updateSession,
   countMessagesToday,
-  DAILY_MESSAGE_LIMIT,
+  getDailyMessageLimit,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -62,7 +62,10 @@ export async function GET(req: NextRequest) {
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
     const dailyState = await getOrCreateCharacterDailyState(session.id);
     const reconnect = await attemptReconnect(session);
-    const dailyMessageCount = await countMessagesToday(session.id);
+    const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
+      countMessagesToday(session.id),
+      getDailyMessageLimit(session.id),
+    ]);
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
     );
@@ -78,7 +81,7 @@ export async function GET(req: NextRequest) {
       dailyState,
       devMode: isDeveloperRequest(req),
       dailyMessageCount,
-      dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+      dailyMessageLimit,
     });
   } catch (err) {
     return NextResponse.json(
@@ -164,13 +167,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       extraMessages: [],
       localReply: true,
       dailyMessageCount: await countMessagesToday(session.id),
-      dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+      dailyMessageLimit: await getDailyMessageLimit(session.id),
     });
   }
 
-  if (!devMode && (await countMessagesToday(session.id)) >= DAILY_MESSAGE_LIMIT) {
+  const [dailyMessageCount, dailyMessageLimit] = await Promise.all([
+    countMessagesToday(session.id),
+    getDailyMessageLimit(session.id),
+  ]);
+  if (!devMode && dailyMessageCount >= dailyMessageLimit) {
     return NextResponse.json(
-      { error: "오늘 대화 횟수를 다 썼어요. 내일 다시 이야기해요!" },
+      {
+        error: "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요.",
+        canRequestFeedbackBonus: true,
+        dailyMessageCount,
+        dailyMessageLimit,
+      },
       { status: 429 }
     );
   }
@@ -346,6 +358,6 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     photoMessage,
     extraMessages,
     dailyMessageCount: await countMessagesToday(session.id),
-    dailyMessageLimit: DAILY_MESSAGE_LIMIT,
+    dailyMessageLimit: await getDailyMessageLimit(session.id),
   });
 }
