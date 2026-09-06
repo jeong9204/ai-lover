@@ -11,7 +11,7 @@ import { LimitFeedbackPanel } from "@/components/LimitFeedbackPanel";
 import { MessageList } from "@/components/MessageList";
 import { NamePrompt } from "@/components/NamePrompt";
 import { Msg } from "@/components/chat-types";
-import type { CharacterDailyState } from "@/lib/store";
+import type { CharacterDailyState, Commitment } from "@/lib/store";
 
 const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
@@ -93,6 +93,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [mood, setMood] = useState<string>("calm");
+  const [emotion, setEmotion] = useState<string>("neutral");
+  const [emotionIntensity, setEmotionIntensity] = useState(0);
   const [relationshipStage, setRelationshipStage] = useState<string>("오래된 친구");
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -112,6 +114,7 @@ export default function Home() {
   const [resetting, setResetting] = useState(false);
   const [devMode, setDevMode] = useState(false);
   const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [canRequestFeedbackBonus, setCanRequestFeedbackBonus] = useState(false);
@@ -228,11 +231,14 @@ export default function Home() {
       }
       setMessages(data.messages ?? []);
       setMood(data.mood ?? "calm");
+      setEmotion(data.emotion ?? "neutral");
+      setEmotionIntensity(data.emotionIntensity ?? 0);
       setRelationshipStage(data.relationshipStage ?? "오래된 친구");
       setUserName(data.userName ?? null);
       setCharacterName(data.characterName ?? PERSONA_NAME);
       setPersonaType(data.personaType ?? "default");
       setDailyState(data.dailyState ?? null);
+      setCommitments(data.commitments ?? []);
       const nextDevMode = Boolean(data.devMode);
       setDevMode(nextDevMode);
       syncLimitNoticeFromUsage(data);
@@ -471,10 +477,13 @@ export default function Home() {
         if (serverMessages.length > messagesRef.current.length) {
           setMessages(serverMessages);
           setMood(data.mood ?? "calm");
+          setEmotion(data.emotion ?? emotion);
+          setEmotionIntensity(data.emotionIntensity ?? emotionIntensity);
           setRelationshipStage(data.relationshipStage ?? relationshipStage);
           setCharacterName(data.characterName ?? characterName);
           setPersonaType(data.personaType ?? personaType);
           setDailyState(data.dailyState ?? dailyState);
+          setCommitments(data.commitments ?? commitments);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
         syncLimitNoticeFromUsage(data);
@@ -595,10 +604,13 @@ export default function Home() {
         setMessages((prev) => [...prev, ...appended]);
       }
       setMood(data.mood ?? "calm");
+      setEmotion(data.emotion ?? emotion);
+      setEmotionIntensity(data.emotionIntensity ?? emotionIntensity);
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
+      setCommitments(data.commitments ?? commitments);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
     } catch (e) {
@@ -680,10 +692,13 @@ export default function Home() {
       }
       setMessages((prev) => [...prev, ...appended]);
       setMood(data.mood ?? mood);
+      setEmotion(data.emotion ?? emotion);
+      setEmotionIntensity(data.emotionIntensity ?? emotionIntensity);
       setRelationshipStage(data.relationshipStage ?? relationshipStage);
       setCharacterName(data.characterName ?? characterName);
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
+      setCommitments(data.commitments ?? commitments);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
       if (data.error) setError(data.error);
@@ -796,7 +811,10 @@ export default function Home() {
         personaLabel={personaTypeLabel(personaType)}
         relationshipStage={relationshipStage}
         mood={mood}
+        emotion={emotion}
+        emotionIntensity={emotionIntensity}
         dailyState={dailyState}
+        commitments={commitments}
         onClose={() => setProfileOpen(false)}
       />
     </main>

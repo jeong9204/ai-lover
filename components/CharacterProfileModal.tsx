@@ -2,7 +2,7 @@ import { CharacterAvatar } from "@/components/CharacterAvatar";
 import { characterProfileImage } from "@/lib/character-profile";
 import type { PersonaType } from "@/lib/persona";
 import { buildMoodLabel, buildStatusMessage, buildTodayStatus } from "@/lib/profile-status";
-import type { CharacterDailyState } from "@/lib/store";
+import type { CharacterDailyState, Commitment } from "@/lib/store";
 
 interface CharacterProfileModalProps {
   open: boolean;
@@ -11,7 +11,10 @@ interface CharacterProfileModalProps {
   personaLabel: string;
   relationshipStage: string;
   mood: string;
+  emotion: string;
+  emotionIntensity: number;
   dailyState: CharacterDailyState | null;
+  commitments: Commitment[];
   onClose: () => void;
 }
 
@@ -22,7 +25,10 @@ export function CharacterProfileModal({
   personaLabel,
   relationshipStage,
   mood,
+  emotion,
+  emotionIntensity,
   dailyState,
+  commitments,
   onClose,
 }: CharacterProfileModalProps) {
   if (!open) return null;
@@ -64,17 +70,19 @@ export function CharacterProfileModal({
 
         <div className="mt-4 rounded-xl bg-gray-50 px-4 py-3">
           <p className="text-[11px] font-semibold text-gray-400">상태 메시지</p>
-          <p className="mt-1 text-sm font-medium">{buildStatusMessage(personaType, mood, dailyState)}</p>
+          <p className="mt-1 text-sm font-medium">
+            {buildStatusMessage(personaType, mood, dailyState, relationshipStage, emotion, emotionIntensity, commitments)}
+          </p>
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm">
           <div>
             <dt className="text-[11px] font-semibold text-gray-400">오늘</dt>
-            <dd className="mt-1 text-gray-700">{buildTodayStatus(dailyState)}</dd>
+            <dd className="mt-1 text-gray-700">{buildTodayStatus(dailyState, relationshipStage, commitments)}</dd>
           </div>
           <div>
             <dt className="text-[11px] font-semibold text-gray-400">기분</dt>
-            <dd className="mt-1 text-gray-700">{buildMoodLabel(dailyState?.mood ?? mood)}</dd>
+            <dd className="mt-1 text-gray-700">{buildMoodLabel(emotion !== "neutral" ? emotion : dailyState?.mood ?? mood)}</dd>
           </div>
         </dl>
       </section>

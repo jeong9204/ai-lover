@@ -11,6 +11,7 @@ import {
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
+  type Commitment,
 } from "@/lib/store";
 import { computeMood, PresenceContext } from "@/lib/mood";
 import { detectJealousyTrigger, JEALOUSY_PROMPT_HINT, buildEmotionPromptHint } from "@/lib/jealousy";
@@ -93,11 +94,14 @@ export async function GET(req: NextRequest) {
       sessionId: session.id,
       messages: [...session.messages, ...extraMessages],
       mood: reconnect?.mood ?? mood.state,
+      emotion: session.emotion,
+      emotionIntensity: session.emotionIntensity,
       relationshipStage: reconnect?.relationshipStage ?? session.relationshipStage,
       userName: session.userName,
       characterName: session.characterName,
       personaType: session.personaType,
       dailyState,
+      commitments: session.commitments,
       devMode,
       dailyMessageCount,
       dailyMessageLimit,
@@ -204,10 +208,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       reply: replyMessage.content,
       event: null,
       mood: mood.state,
+      emotion: localShortReactionReply.emotion,
+      emotionIntensity: localShortReactionReply.intensity,
       relationshipStage: session.relationshipStage,
       isJealous: false,
       devMode,
       dailyState,
+      commitments: session.commitments,
       photoMessage: null,
       extraMessages: [],
       localReply: true,
@@ -382,6 +389,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     assistantMessage: structured.message,
   });
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
+  const responseCommitments: Commitment[] =
+    commitments.length > 0
+      ? [
+          ...session.commitments,
+          ...commitments.map((commitment, index) => ({
+            id: `pending-${now}-${index}`,
+            title: commitment.title,
+            detail: commitment.detail ?? null,
+            owner: commitment.owner,
+            dueLabel: commitment.dueLabel ?? null,
+            status: "pending" as const,
+            sourceMessage: commitment.sourceMessage ?? null,
+            createdAt: now,
+          })),
+        ]
+      : session.commitments;
 
   return NextResponse.json({
     sessionId: session.id,
@@ -390,10 +413,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     reply: structured.message,
     event: responseEvent,
     mood: mood.state,
+    emotion: structured.emotion,
+    emotionIntensity: structured.intensity,
     relationshipStage,
     isJealous,
     devMode,
     dailyState,
+    commitments: responseCommitments,
     photoMessage,
     extraMessages,
     dailyMessageCount: await countMessagesToday(session.id),

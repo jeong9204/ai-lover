@@ -170,9 +170,12 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     callEndedMessage,
     replyMessage,
     mood: mood.state,
+    emotion: structured.emotion,
+    emotionIntensity: structured.intensity,
     relationshipStage,
     devMode,
     dailyState,
+    commitments: session.commitments,
     dailyMessageCount: await countMessagesToday(session.id),
     dailyMessageLimit: await getDailyMessageLimit(session.id),
   });
