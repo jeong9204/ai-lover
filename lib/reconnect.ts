@@ -20,7 +20,7 @@ import {
 } from "./store";
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
-import { buildConversationSummaryHint, buildEventHistory } from "./llm-context";
+import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
 
 export interface ReconnectResult {
@@ -75,6 +75,8 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (commitmentHint) systemPromptParts.push(commitmentHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const limitResumeHint = buildLimitResumePromptHint(session.messages);
+  if (limitResumeHint) systemPromptParts.push(limitResumeHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const history: LLMMessage[] = buildEventHistory(session.messages, buildReconnectTrigger(mood.elapsedMs, mood.state));

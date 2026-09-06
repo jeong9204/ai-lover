@@ -42,6 +42,7 @@ export interface PhotoAttachment {
 export interface MessageMetadata {
   photo?: PhotoAttachment;
   localReply?: boolean;
+  limitBlocked?: boolean;
 }
 
 export interface Memory {
@@ -220,7 +221,10 @@ export async function countMessagesToday(sessionId: string): Promise<number> {
     .gte("created_at", startOfTodayKST().toISOString());
 
   if (!error && data) {
-    return data.filter((row) => (row.metadata as MessageMetadata | null)?.localReply !== true).length;
+    return data.filter((row) => {
+      const metadata = row.metadata as MessageMetadata | null;
+      return metadata?.localReply !== true && metadata?.limitBlocked !== true;
+    }).length;
   }
 
   const fallback = await supabase

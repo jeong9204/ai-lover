@@ -20,6 +20,7 @@ export interface PhotoAttachment {
 
 export interface MessageMetadata {
   photo?: PhotoAttachment;
+  limitBlocked?: boolean;
 }
 
 export interface Msg {

@@ -87,3 +87,16 @@ export function buildConversationSummaryHint(messages: ChatMessage[]): string | 
 ${lines.map((line) => `- ${line}`).join("\n")}
 `.trim();
 }
+
+export function buildLimitResumePromptHint(messages: ChatMessage[]): string | null {
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role !== "user" || lastMessage.metadata?.limitBlocked !== true) return null;
+
+  return `
+[한도 종료 후 이어받기]
+직전 유저 메시지는 이전 이용 한도 때문에 네가 아직 답하지 못한 말이야:
+"${compactContent(lastMessage.content)}"
+이번 턴에는 이 미해결 메시지를 먼저 자연스럽게 이어받고, 마지막 user 메시지가 추가로 있다면 같이 반영해.
+한도, 시스템, 앱 같은 메타 이유를 캐릭터 입으로 설명하지 마.
+`.trim();
+}

@@ -39,7 +39,7 @@ import { attemptReconnect } from "@/lib/reconnect";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
-import { buildChatHistory, buildConversationSummaryHint } from "@/lib/llm-context";
+import { buildChatHistory, buildConversationSummaryHint, buildLimitResumePromptHint } from "@/lib/llm-context";
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { shouldAcceptConfessionEnding } from "@/lib/confession";
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
@@ -129,6 +129,12 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (!devMode && dailyMessageCount >= dailyMessageLimit) {
     const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
     const canRequestFeedbackBonus = feedbackBonusCount === 0;
+    await appendMessage(session.id, {
+      role: "user",
+      content: message,
+      timestamp: Date.now(),
+      metadata: { limitBlocked: true },
+    });
     return NextResponse.json(
       {
         error: canRequestFeedbackBonus
@@ -231,6 +237,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const limitResumeHint = buildLimitResumePromptHint(session.messages);
+  if (limitResumeHint) systemPromptParts.push(limitResumeHint);
   const afterMeetupHint = buildAfterMeetupPromptHint(
     hasRecentMeetupContext(session.messages),
     session.personaType
