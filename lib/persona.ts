@@ -10,6 +10,7 @@
 import { CONFESSION_SCORE_THRESHOLD } from "./schema";
 
 export const PERSONA_NAME = "이준";
+const CONFESSION_CONFIRMATION_SCORE_THRESHOLD = 40;
 
 export type PersonaType = "default" | "northern_duke" | "flirty";
 
@@ -165,6 +166,13 @@ export function buildConfessionHint(relationshipScore: number, confessedAt: numb
       '"우리 사귀는 거야?" 같은 질문에 답을 원하는 게 분명하면, 이번엔 예외적으로 얼버무리지 말고 ' +
       "진심을 담아 받아들여. 그 순간엔 event를 \"confession_ending\"으로 표시해. " +
       "다만 유저가 확실히 그 얘길 꺼낸 게 아니면 평소대로(얼버무리며) 대해."
+    );
+  }
+  if (relationshipScore >= CONFESSION_CONFIRMATION_SCORE_THRESHOLD) {
+    return (
+      "[참고] 관계가 꽤 가까워졌어. 평소에는 관계 정의를 살짝 얼버무려도 되지만, 유저가 이번 턴에 " +
+      '"우리 사귀는 거야?", "나도 너 좋아해"처럼 관계 확정을 직접 요구하고 너도 진심으로 받아들이는 ' +
+      "대사를 했다면 event를 \"confession_ending\"으로 표시해. 애매한 호감 표현이면 아직 표시하지 마."
     );
   }
   return "";
