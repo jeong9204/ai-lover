@@ -1,5 +1,6 @@
 import type { ChatMessage } from "./store";
 import type { LLMMessage } from "./llm";
+import { isDifferentKoreanDay } from "./korean-date";
 
 const CHAT_HISTORY_LIMIT = 8;
 const EVENT_HISTORY_LIMIT = 6;
@@ -25,6 +26,10 @@ function roleLabel(role: ChatMessage["role"]): string {
   return "이벤트";
 }
 
+function isStaleLimitBlockedMessage(message: ChatMessage, now = Date.now()): boolean {
+  return message.metadata?.limitBlocked === true && isDifferentKoreanDay(message.timestamp, now);
+}
+
 export function buildChatHistory(messages: ChatMessage[], nextUserMessage: string): LLMMessage[] {
   const history = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
@@ -41,6 +46,7 @@ export function buildChatHistory(messages: ChatMessage[], nextUserMessage: strin
 export function buildEventHistory(messages: ChatMessage[], trigger: string): LLMMessage[] {
   const history = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => !isStaleLimitBlockedMessage(m))
     .slice(-EVENT_HISTORY_LIMIT)
     .map((m) => ({
       role: m.role as "user" | "assistant",
@@ -91,6 +97,7 @@ ${lines.map((line) => `- ${line}`).join("\n")}
 export function buildLimitResumePromptHint(messages: ChatMessage[]): string | null {
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role !== "user" || lastMessage.metadata?.limitBlocked !== true) return null;
+  if (isStaleLimitBlockedMessage(lastMessage)) return null;
 
   return `
 [한도 종료 후 이어받기]

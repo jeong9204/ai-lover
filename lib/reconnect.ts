@@ -7,7 +7,7 @@ import { buildEmotionPromptHint } from "./jealousy";
 import { pickSpontaneousMemory, buildMemoryPromptHint } from "./memory";
 import { PERSONA_BASE, buildCharacterNameHint, buildUserNameHint } from "./persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "./llm";
-import { stageForScore, conversationMoodFromEmotion, Emotion } from "./schema";
+import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "./schema";
 import { shouldSendReconnectMessage, buildReconnectTrigger } from "./events";
 import {
   appendMessage,
@@ -100,7 +100,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
     }
 
     const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
-    relationshipStage = stageForScore(relationshipScore);
+    relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
     await updateSession(session.id, {
       relationshipScore,
       relationshipStage,
