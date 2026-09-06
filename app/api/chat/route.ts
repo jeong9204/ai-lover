@@ -41,7 +41,7 @@ import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-assets";
 import { buildChatHistory, buildConversationSummaryHint, buildLimitResumePromptHint } from "@/lib/llm-context";
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
-import { shouldAcceptConfessionEnding } from "@/lib/confession";
+import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@/lib/confession";
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -62,6 +62,20 @@ export async function GET(req: NextRequest) {
     }
 
     const { session } = result;
+    const recoveredConfessionAt = findAcceptedConfessionTimestamp(
+      session.messages,
+      session.relationshipScore,
+      Boolean(session.confessedAt)
+    );
+    if (recoveredConfessionAt) {
+      await updateSession(session.id, {
+        relationshipStage: CONFESSED_STAGE,
+        confessedAt: recoveredConfessionAt,
+      });
+      session.relationshipStage = CONFESSED_STAGE;
+      session.confessedAt = recoveredConfessionAt;
+    }
+
     const mood = computeMood(session.lastMessageAt, presenceContext(session));
     const dailyState = await getOrCreateCharacterDailyState(session.id);
     const devMode = isDeveloperRequest(req);
