@@ -21,6 +21,7 @@ export interface PhotoAttachment {
 export interface MessageMetadata {
   photo?: PhotoAttachment;
   limitBlocked?: boolean;
+  callEndedBy?: "user" | "assistant";
 }
 
 export interface Msg {

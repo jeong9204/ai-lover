@@ -17,6 +17,8 @@ const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
 const DEV_MODE_STORAGE_KEY = "ai-lover-dev-secret";
 const LIMIT_NOTICE_STORAGE_KEY = "ai-lover-limit-notice";
+const MIN_ASSISTANT_CALL_END_SEC = 90;
+const MAX_ASSISTANT_CALL_END_SEC = 240;
 
 interface StoredLimitNotice {
   dateKey: string;
@@ -128,6 +130,8 @@ export default function Home() {
   const messagesRef = useRef<Msg[]>([]);
   const loadingRef = useRef(false);
   const callIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callAutoEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callStartedAtRef = useRef<number | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -645,16 +649,28 @@ export default function Home() {
   function startCall() {
     if (activeCall || sessionLoading) return;
     setCallSeconds(0);
+    callStartedAtRef.current = Date.now();
     setActiveCall(true);
     callIntervalRef.current = setInterval(() => {
       setCallSeconds((s) => s + 1);
     }, 1000);
+    const autoEndSec =
+      MIN_ASSISTANT_CALL_END_SEC +
+      Math.floor(Math.random() * (MAX_ASSISTANT_CALL_END_SEC - MIN_ASSISTANT_CALL_END_SEC + 1));
+    callAutoEndTimeoutRef.current = setTimeout(() => {
+      void endCall("assistant");
+    }, autoEndSec * 1000);
   }
 
-  async function endCall() {
+  async function endCall(endedBy: "user" | "assistant" = "user") {
     if (callIntervalRef.current) clearInterval(callIntervalRef.current);
     callIntervalRef.current = null;
-    const durationSec = callSeconds;
+    if (callAutoEndTimeoutRef.current) clearTimeout(callAutoEndTimeoutRef.current);
+    callAutoEndTimeoutRef.current = null;
+    const durationSec = callStartedAtRef.current
+      ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
+      : callSeconds;
+    callStartedAtRef.current = null;
     setActiveCall(false);
     setCallEnding(true);
 
@@ -662,7 +678,7 @@ export default function Home() {
       const res = await fetchWithSession("/api/chat/call", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ durationSec }),
+        body: JSON.stringify({ durationSec, endedBy }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -680,6 +696,7 @@ export default function Home() {
           content: data.callEndedMessage?.content ?? `통화 종료 · ${formatCallDuration(durationSec)}`,
           timestamp: Date.now(),
           eventType: "call_ended",
+          metadata: data.callEndedMessage?.metadata ?? { callEndedBy: endedBy },
         },
       ];
       if (data.replyMessage) {
@@ -712,6 +729,7 @@ export default function Home() {
   useEffect(() => {
     return () => {
       if (callIntervalRef.current) clearInterval(callIntervalRef.current);
+      if (callAutoEndTimeoutRef.current) clearTimeout(callAutoEndTimeoutRef.current);
       if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
     };
   }, []);
@@ -801,7 +819,7 @@ export default function Home() {
         activeCall={activeCall}
         callSeconds={callSeconds}
         characterName={characterName}
-        onEndCall={endCall}
+        onEndCall={() => endCall("user")}
       />
 
       <CharacterProfileModal

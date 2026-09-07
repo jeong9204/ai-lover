@@ -19,7 +19,7 @@ import { computeMood } from "@/lib/mood";
 import { buildEmotionPromptHint } from "@/lib/jealousy";
 import { PERSONA_BASE, buildCharacterNameHint, buildUserNameHint } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
-import { stageForScore, conversationMoodFromEmotion, Emotion } from "@/lib/schema";
+import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
 import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
@@ -41,11 +41,15 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleCallPost(req: NextRequest): Promise<NextResponse> {
-  const { durationSec } = (await req.json()) as { durationSec?: number };
+  const { durationSec, endedBy = "user" } = (await req.json()) as {
+    durationSec?: number;
+    endedBy?: "user" | "assistant";
+  };
   if (typeof durationSec !== "number" || !Number.isFinite(durationSec) || durationSec < 0) {
     return NextResponse.json({ error: "durationSec이 필요합니다." }, { status: 400 });
   }
   const clampedDuration = Math.min(Math.round(durationSec), MAX_DURATION_SEC);
+  const callEndedBy = endedBy === "assistant" ? "assistant" : "user";
 
   const result = await getOrCreateSession(req.headers.get("x-session-id"));
   if (result.status === "error") {
@@ -77,9 +81,10 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   const now = Date.now();
   const callEndedMessage: ChatMessage = {
     role: "system_event",
-    content: buildCallEndedLabel(clampedDuration),
+    content: buildCallEndedLabel(clampedDuration, callEndedBy),
     timestamp: now,
     eventType: "call_ended",
+    metadata: { callEndedBy },
   };
   await appendMessage(session.id, callEndedMessage);
   await appendRelationshipMilestone(
@@ -107,7 +112,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const history: LLMMessage[] = buildEventHistory(session.messages, buildCallEndedTrigger(clampedDuration));
+  const history: LLMMessage[] = buildEventHistory(session.messages, buildCallEndedTrigger(clampedDuration, callEndedBy));
 
   let structured;
   try {
@@ -153,7 +158,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   }
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
-  const relationshipStage = stageForScore(relationshipScore);
+  const relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,

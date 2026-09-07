@@ -43,6 +43,7 @@ export interface MessageMetadata {
   photo?: PhotoAttachment;
   localReply?: boolean;
   limitBlocked?: boolean;
+  callEndedBy?: "user" | "assistant";
 }
 
 export interface Memory {

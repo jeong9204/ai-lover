@@ -35,20 +35,29 @@ export function formatCallDuration(seconds: number): string {
 }
 
 /** 통화 종료 시 대화 중간에 넣는 구분선 라벨 (예: "통화 종료 · 1:24"). */
-export function buildCallEndedLabel(durationSec: number): string {
-  return `통화 종료 · ${formatCallDuration(durationSec)}`;
+export function buildCallEndedLabel(durationSec: number, endedBy: "user" | "assistant" = "user"): string {
+  const prefix = endedBy === "assistant" ? "상대가 먼저 통화를 종료했어요" : "통화 종료";
+  return `${prefix} · ${formatCallDuration(durationSec)}`;
 }
 
 /**
  * 통화가 막 끝난 뒤 캐릭터가 먼저 텍스트로 말을 잇게 만드는 합성 user 턴.
  * reconnect 트리거와 마찬가지로 대화 기록에는 저장하지 않고 LLM 호출용 history에만 잠깐 쓴다.
  */
-export function buildCallEndedTrigger(durationSec: number): string {
+export function buildCallEndedTrigger(durationSec: number, endedBy: "user" | "assistant" = "user"): string {
   const label = formatCallDuration(durationSec);
+  if (endedBy === "assistant") {
+    return (
+      `[시스템: 방금 유저와 ${label} 동안 전화 통화를 했고, 네가 먼저 통화를 마무리했다. ` +
+      `일이 생겼거나 이제 자야 하거나 이동해야 해서 자연스럽게 끊은 상황이다. ` +
+      `유저 탓을 하거나 서운한 척으로 죄책감을 주지 마. 짧게라도 목소리를 들어서 좋았다는 여운이나, ` +
+      `나중에 다시 이야기하자는 톤으로 텍스트를 남겨라.]`
+    );
+  }
   return (
     `[시스템: 방금 유저와 ${label} 동안 전화 통화를 했고, 막 끊었다. ` +
-    `통화에서 무슨 얘기를 했는지 자연스럽게 언급하거나 그 여운이 묻어나는 톤으로, ` +
-    `다시 텍스트로 대화를 이어가라.]`
+    `통화 시간이 짧아도 짜증내거나 유저를 탓하지 마. ` +
+    `통화에서 무슨 얘기를 했는지 자연스럽게 언급하거나 그 여운이 묻어나는 톤으로, 다시 텍스트로 대화를 이어가라.]`
   );
 }
 
