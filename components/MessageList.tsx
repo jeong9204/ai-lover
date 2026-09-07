@@ -90,7 +90,7 @@ export function MessageList({
           <Fragment key={i}>
             {showDateDivider && <DateDivider timestamp={m.timestamp} />}
             {m.eventType === "call_ended" ? (
-              <div className="my-2 flex items-center gap-2 text-gray-500">
+              <div className="my-5 flex items-center gap-2 text-gray-500">
                 <div className="h-px flex-1 bg-gray-400/40" />
                 <span className="text-xs">📞 {m.content}</span>
                 <div className="h-px flex-1 bg-gray-400/40" />
