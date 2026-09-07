@@ -819,6 +819,7 @@ export default function Home() {
         activeCall={activeCall}
         callSeconds={callSeconds}
         characterName={characterName}
+        personaType={personaType}
         onEndCall={() => endCall("user")}
       />
 
