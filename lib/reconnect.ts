@@ -22,6 +22,7 @@ import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
 import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
+import { buildCurrentTimePromptHint } from "./time-context";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -66,6 +67,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
+    buildCurrentTimePromptHint(),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
   ];

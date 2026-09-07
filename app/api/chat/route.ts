@@ -44,6 +44,7 @@ import { buildChatHistory, buildConversationSummaryHint, buildLimitResumePromptH
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@/lib/confession";
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
+import { buildCurrentTimePromptHint } from "@/lib/time-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -238,6 +239,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
+    buildCurrentTimePromptHint(),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
   ];

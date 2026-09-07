@@ -25,6 +25,7 @@ import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildConversationSummaryHint, buildEventHistory } from "@/lib/llm-context";
+import { buildCurrentTimePromptHint } from "@/lib/time-context";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -103,6 +104,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
+    buildCurrentTimePromptHint(),
     `[현재 감정 상태 힌트]\n${mood.promptHint}`,
     STRUCTURED_OUTPUT_GUIDE,
   ];
