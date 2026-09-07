@@ -135,7 +135,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     replyMessage = {
       role: "assistant",
       content: structured.message,
-      timestamp: Date.now(),
+      timestamp: now + 1,
       eventType: structured.event?.type === "call_request" ? "call_request" : null,
     };
     await appendMessage(session.id, replyMessage);

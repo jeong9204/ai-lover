@@ -123,6 +123,7 @@ interface SessionRow {
 }
 
 interface MessageRow {
+  id?: number;
   role: string;
   content: string;
   event_type: string | null;
@@ -291,18 +292,20 @@ export async function saveFeedbackBonusRequest(
 async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
   const query = supabase
     .from("messages")
-    .select("role, content, event_type, metadata, created_at")
+    .select("id, role, content, event_type, metadata, created_at")
     .eq("session_id", sessionId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   let { data, error } = await query as { data: MessageRow[] | null; error: unknown };
 
   if (error) {
     const fallback = await supabase
       .from("messages")
-      .select("role, content, event_type, created_at")
+      .select("id, role, content, event_type, created_at")
       .eq("session_id", sessionId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
     data = fallback.data as MessageRow[] | null;
     error = fallback.error;
   }

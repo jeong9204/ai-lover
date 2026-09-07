@@ -307,7 +307,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     await appendMessage(session.id, {
       role: "system_event",
       content: "메시지를 삭제했습니다.",
-      timestamp: now,
+      timestamp: now + 1,
       eventType: "deleted_message",
     });
   } else if (structured.message) {
@@ -322,11 +322,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     await appendMessage(session.id, {
       role: "assistant",
       content: structured.message,
-      timestamp: now,
+      timestamp: now + 1,
       eventType: replyEventType,
     });
 
-    photoMessage = pendingPhotoMessage ? { ...pendingPhotoMessage, timestamp: now + 1 } : null;
+    photoMessage = pendingPhotoMessage ? { ...pendingPhotoMessage, timestamp: now + 2 } : null;
     if (photoMessage) {
       await appendMessage(session.id, photoMessage);
     }
@@ -335,13 +335,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       const meetupCompletedMessage: ChatMessage = {
         role: "system_event",
         content: buildMeetupCompletedLabel(),
-        timestamp: now + 2,
+        timestamp: now + 3,
         eventType: "meetup_completed",
       };
       const meetupReturnMessage: ChatMessage = {
         role: "assistant",
         content: buildMeetupReturnMessage(session.personaType, now),
-        timestamp: now + 3,
+        timestamp: now + 4,
         eventType: null,
       };
       await appendMessage(session.id, meetupCompletedMessage);
