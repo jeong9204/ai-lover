@@ -74,11 +74,32 @@ export interface Commitment {
   createdAt: number;
 }
 
+export interface CharacterActivity {
+  id: string;
+  type: "busy_work";
+  title: string;
+  detail: string | null;
+  status: "active" | "done" | "cancelled";
+  startsAt: number;
+  endsAt: number;
+  sourceMessage: string | null;
+  createdAt: number;
+}
+
 export interface CommitmentDraft {
   title: string;
   detail?: string | null;
   owner: Commitment["owner"];
   dueLabel?: string | null;
+  sourceMessage?: string | null;
+}
+
+export interface CharacterActivityDraft {
+  type: CharacterActivity["type"];
+  title: string;
+  detail?: string | null;
+  startsAt: number;
+  endsAt: number;
   sourceMessage?: string | null;
 }
 
@@ -96,6 +117,7 @@ export interface SessionData {
   memories: Memory[];
   milestones: Milestone[];
   commitments: Commitment[];
+  activities: CharacterActivity[];
   lastMessageAt: number | null;
   relationshipStage: string;
   relationshipScore: number;
@@ -146,7 +168,8 @@ function rowToSessionData(
   messages: ChatMessage[],
   memories: Memory[],
   milestones: Milestone[],
-  commitments: Commitment[]
+  commitments: Commitment[],
+  activities: CharacterActivity[]
 ): SessionData {
   return {
     id: row.id,
@@ -154,6 +177,7 @@ function rowToSessionData(
     memories,
     milestones,
     commitments,
+    activities,
     lastMessageAt: row.last_active_at ? new Date(row.last_active_at).getTime() : null,
     relationshipStage: row.relationship_stage,
     relationshipScore: row.relationship_score,
@@ -432,6 +456,28 @@ async function loadCommitments(sessionId: string): Promise<Commitment[]> {
   }));
 }
 
+async function loadActivities(sessionId: string): Promise<CharacterActivity[]> {
+  const { data, error } = await supabase
+    .from("character_activities")
+    .select("id, type, title, detail, status, starts_at, ends_at, source_message, created_at")
+    .eq("session_id", sessionId)
+    .eq("status", "active")
+    .order("ends_at", { ascending: true })
+    .limit(5);
+  if (error || !data) return [];
+  return data.map((item) => ({
+    id: String(item.id),
+    type: (item.type as CharacterActivity["type"] | null) ?? "busy_work",
+    title: item.title,
+    detail: item.detail,
+    status: (item.status as CharacterActivity["status"] | null) ?? "active",
+    startsAt: new Date(item.starts_at).getTime(),
+    endsAt: new Date(item.ends_at).getTime(),
+    sourceMessage: item.source_message,
+    createdAt: new Date(item.created_at).getTime(),
+  }));
+}
+
 /**
  * sessionId가 없으면 새 세션을 만든다.
  * sessionId가 있는데 DB에 없으면(오래된 localStorage 등) 새 세션을 만든다 — 덮어쓰지 않음.
@@ -445,13 +491,14 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
     if (error) return { status: "error" };
 
     if (row) {
-      const [messages, memories, milestones, commitments] = await Promise.all([
+      const [messages, memories, milestones, commitments, activities] = await Promise.all([
         loadMessages(row.id),
         loadMemories(row.id),
         loadMilestones(row.id),
         loadCommitments(row.id),
+        loadActivities(row.id),
       ]);
-      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones, commitments) };
+      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones, commitments, activities) };
     }
     // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
   }
@@ -459,7 +506,7 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
   const { row, error } = await createSessionRow();
 
   if (error || !row) return { status: "error" };
-  return { status: "ok", isNew: true, session: rowToSessionData(row, [], [], [], []) };
+  return { status: "ok", isNew: true, session: rowToSessionData(row, [], [], [], [], []) };
 }
 
 export async function appendInitialMessageIfNeeded(session: SessionData): Promise<ChatMessage | null> {
@@ -637,6 +684,41 @@ export async function appendCommitment(
     due_label: draft.dueLabel ?? null,
     source_message: draft.sourceMessage ?? null,
   });
+}
+
+export async function appendActivity(
+  sessionId: string,
+  draft: CharacterActivityDraft | null | undefined
+): Promise<void> {
+  if (!draft) return;
+
+  const active = await supabase
+    .from("character_activities")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("status", "active")
+    .eq("type", draft.type)
+    .gt("ends_at", new Date(Date.now()).toISOString())
+    .limit(1);
+  if (!active.error && (active.data?.length ?? 0) > 0) return;
+
+  await supabase.from("character_activities").insert({
+    session_id: sessionId,
+    type: draft.type,
+    title: draft.title,
+    detail: draft.detail ?? null,
+    starts_at: new Date(draft.startsAt).toISOString(),
+    ends_at: new Date(draft.endsAt).toISOString(),
+    source_message: draft.sourceMessage ?? null,
+  });
+}
+
+export async function finishActivity(sessionId: string, activityId: string): Promise<void> {
+  await supabase
+    .from("character_activities")
+    .update({ status: "done", updated_at: new Date().toISOString() })
+    .eq("session_id", sessionId)
+    .eq("id", activityId);
 }
 
 export async function getOrCreateCharacterDailyState(sessionId: string): Promise<CharacterDailyState | null> {

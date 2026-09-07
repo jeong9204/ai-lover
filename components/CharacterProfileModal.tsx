@@ -2,7 +2,7 @@ import { CharacterAvatar } from "@/components/CharacterAvatar";
 import { characterProfileImage } from "@/lib/character-profile";
 import type { PersonaType } from "@/lib/persona";
 import { buildMoodLabel, buildStatusMessage, buildTodayStatus } from "@/lib/profile-status";
-import type { CharacterDailyState, Commitment } from "@/lib/store";
+import type { CharacterActivity, CharacterDailyState, Commitment } from "@/lib/store";
 
 interface CharacterProfileModalProps {
   open: boolean;
@@ -15,6 +15,7 @@ interface CharacterProfileModalProps {
   emotionIntensity: number;
   dailyState: CharacterDailyState | null;
   commitments: Commitment[];
+  activities: CharacterActivity[];
   onClose: () => void;
 }
 
@@ -29,6 +30,7 @@ export function CharacterProfileModal({
   emotionIntensity,
   dailyState,
   commitments,
+  activities,
   onClose,
 }: CharacterProfileModalProps) {
   if (!open) return null;
@@ -71,14 +73,25 @@ export function CharacterProfileModal({
         <div className="mt-4 rounded-xl bg-gray-50 px-4 py-3">
           <p className="text-[11px] font-semibold text-gray-400">상태 메시지</p>
           <p className="mt-1 text-sm font-medium">
-            {buildStatusMessage(personaType, mood, dailyState, relationshipStage, emotion, emotionIntensity, commitments)}
+            {buildStatusMessage(
+              personaType,
+              mood,
+              dailyState,
+              relationshipStage,
+              emotion,
+              emotionIntensity,
+              commitments,
+              activities
+            )}
           </p>
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm">
           <div>
             <dt className="text-[11px] font-semibold text-gray-400">오늘</dt>
-            <dd className="mt-1 text-gray-700">{buildTodayStatus(dailyState, relationshipStage, commitments)}</dd>
+            <dd className="mt-1 text-gray-700">
+              {buildTodayStatus(dailyState, relationshipStage, commitments, activities)}
+            </dd>
           </div>
           <div>
             <dt className="text-[11px] font-semibold text-gray-400">기분</dt>

@@ -11,7 +11,7 @@ import { LimitFeedbackPanel } from "@/components/LimitFeedbackPanel";
 import { MessageList } from "@/components/MessageList";
 import { NamePrompt } from "@/components/NamePrompt";
 import { Msg } from "@/components/chat-types";
-import type { CharacterDailyState, Commitment } from "@/lib/store";
+import type { CharacterActivity, CharacterDailyState, Commitment } from "@/lib/store";
 
 const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
@@ -117,6 +117,7 @@ export default function Home() {
   const [devMode, setDevMode] = useState(false);
   const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [activities, setActivities] = useState<CharacterActivity[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [canRequestFeedbackBonus, setCanRequestFeedbackBonus] = useState(false);
@@ -243,6 +244,7 @@ export default function Home() {
       setPersonaType(data.personaType ?? "default");
       setDailyState(data.dailyState ?? null);
       setCommitments(data.commitments ?? []);
+      setActivities(data.activities ?? []);
       const nextDevMode = Boolean(data.devMode);
       setDevMode(nextDevMode);
       syncLimitNoticeFromUsage(data);
@@ -488,6 +490,7 @@ export default function Home() {
           setPersonaType(data.personaType ?? personaType);
           setDailyState(data.dailyState ?? dailyState);
           setCommitments(data.commitments ?? commitments);
+          setActivities(data.activities ?? activities);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
         syncLimitNoticeFromUsage(data);
@@ -615,6 +618,7 @@ export default function Home() {
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
       setCommitments(data.commitments ?? commitments);
+      setActivities(data.activities ?? activities);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
     } catch (e) {
@@ -716,6 +720,7 @@ export default function Home() {
       setPersonaType(data.personaType ?? personaType);
       setDailyState(data.dailyState ?? dailyState);
       setCommitments(data.commitments ?? commitments);
+      setActivities(data.activities ?? activities);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
       if (data.error) setError(data.error);
@@ -834,6 +839,7 @@ export default function Home() {
         emotionIntensity={emotionIntensity}
         dailyState={dailyState}
         commitments={commitments}
+        activities={activities}
         onClose={() => setProfileOpen(false)}
       />
     </main>

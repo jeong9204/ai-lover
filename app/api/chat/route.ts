@@ -4,6 +4,7 @@ import {
   appendMessage,
   appendMemory,
   appendCommitment,
+  appendActivity,
   updateSession,
   countMessagesToday,
   getDailyMessageLimit,
@@ -45,6 +46,7 @@ import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@/lib/confession";
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
+import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -103,6 +105,7 @@ export async function GET(req: NextRequest) {
       personaType: session.personaType,
       dailyState,
       commitments: session.commitments,
+      activities: session.activities,
       devMode,
       dailyMessageCount,
       dailyMessageLimit,
@@ -216,6 +219,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       devMode,
       dailyState,
       commitments: session.commitments,
+      activities: session.activities,
       photoMessage: null,
       extraMessages: [],
       localReply: true,
@@ -256,6 +260,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (memoryHint) systemPromptParts.push(`[기억]\n${memoryHint}`);
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
   if (commitmentHint) systemPromptParts.push(commitmentHint);
+  const activityHint = buildActivityPromptHint(currentActivity(session.activities));
+  if (activityHint) systemPromptParts.push(activityHint);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
@@ -391,6 +397,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     assistantMessage: structured.message,
   });
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
+  const activity = extractActivityFromAssistantReply(structured.message, now + 1);
+  await appendActivity(session.id, activity);
   const responseCommitments: Commitment[] =
     commitments.length > 0
       ? [
@@ -407,6 +415,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
           })),
         ]
       : session.commitments;
+  const responseActivities = activity
+    ? [
+        ...session.activities,
+        {
+          id: `activity-${now}`,
+          type: activity.type,
+          title: activity.title,
+          detail: activity.detail ?? null,
+          status: "active" as const,
+          startsAt: activity.startsAt,
+          endsAt: activity.endsAt,
+          sourceMessage: activity.sourceMessage ?? null,
+          createdAt: now,
+        },
+      ]
+    : session.activities;
 
   return NextResponse.json({
     sessionId: session.id,
@@ -422,6 +446,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     devMode,
     dailyState,
     commitments: responseCommitments,
+    activities: responseActivities,
     photoMessage,
     extraMessages,
     dailyMessageCount: await countMessagesToday(session.id),

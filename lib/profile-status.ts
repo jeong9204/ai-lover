@@ -1,5 +1,5 @@
 import type { PersonaType } from "./persona";
-import type { CharacterDailyState, Commitment } from "./store";
+import type { CharacterActivity, CharacterDailyState, Commitment } from "./store";
 
 function pickStable<T>(items: readonly T[], seed: string): T {
   let hash = 0;
@@ -25,6 +25,20 @@ function commitmentStatus(commitments: Commitment[]): string | null {
   return null;
 }
 
+function activeActivityStatus(activities: CharacterActivity[]): string | null {
+  const activity = activities.find((item) => item.status === "active" && item.endsAt > Date.now());
+  if (!activity) return null;
+  if (activity.type === "busy_work") return "일하는 중";
+  return activity.title;
+}
+
+function activeActivityTodayStatus(activities: CharacterActivity[]): string | null {
+  const activity = activities.find((item) => item.status === "active" && item.endsAt > Date.now());
+  if (!activity) return null;
+  if (activity.type === "busy_work") return "일 끝나고 연락할 생각 중";
+  return activity.detail ?? activity.title;
+}
+
 export function buildStatusMessage(
   personaType: PersonaType,
   mood: string,
@@ -32,8 +46,12 @@ export function buildStatusMessage(
   relationshipStage = "",
   emotion = mood,
   emotionIntensity = 0,
-  commitments: Commitment[] = []
+  commitments: Commitment[] = [],
+  activities: CharacterActivity[] = []
 ): string {
+  const activityStatus = activeActivityStatus(activities);
+  if (activityStatus) return activityStatus;
+
   if (isLoverStage(relationshipStage)) {
     const pendingStatus = commitmentStatus(commitments);
     if (pendingStatus) return pendingStatus;
@@ -75,8 +93,12 @@ export function buildStatusMessage(
 export function buildTodayStatus(
   dailyState: CharacterDailyState | null,
   relationshipStage = "",
-  commitments: Commitment[] = []
+  commitments: Commitment[] = [],
+  activities: CharacterActivity[] = []
 ): string {
+  const activityStatus = activeActivityTodayStatus(activities);
+  if (activityStatus) return activityStatus;
+
   if (isLoverStage(relationshipStage)) {
     const pendingStatus = commitmentStatus(commitments);
     if (pendingStatus) return pendingStatus;

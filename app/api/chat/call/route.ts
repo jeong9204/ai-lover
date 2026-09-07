@@ -14,6 +14,7 @@ import {
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
   appendMemory,
+  appendActivity,
 } from "@/lib/store";
 import { computeMood } from "@/lib/mood";
 import { buildEmotionPromptHint } from "@/lib/jealousy";
@@ -26,6 +27,7 @@ import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildConversationSummaryHint, buildEventHistory } from "@/lib/llm-context";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
+import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -110,6 +112,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   ];
   if (emotionHint) systemPromptParts.push(emotionHint);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  const activityHint = buildActivityPromptHint(currentActivity(session.activities));
+  if (activityHint) systemPromptParts.push(activityHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const systemPrompt = systemPromptParts.join("\n\n");
@@ -158,6 +162,24 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
       inferMemoryType({ emotion: structured.emotion, eventType: replyEventType, memory: structured.memory })
     );
   }
+  const activity = extractActivityFromAssistantReply(structured.message, now + 1);
+  await appendActivity(session.id, activity);
+  const responseActivities = activity
+    ? [
+        ...session.activities,
+        {
+          id: `activity-${now}`,
+          type: activity.type,
+          title: activity.title,
+          detail: activity.detail ?? null,
+          status: "active" as const,
+          startsAt: activity.startsAt,
+          endsAt: activity.endsAt,
+          sourceMessage: activity.sourceMessage ?? null,
+          createdAt: now,
+        },
+      ]
+    : session.activities;
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
@@ -183,6 +205,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     devMode,
     dailyState,
     commitments: session.commitments,
+    activities: responseActivities,
     dailyMessageCount: await countMessagesToday(session.id),
     dailyMessageLimit: await getDailyMessageLimit(session.id),
   });

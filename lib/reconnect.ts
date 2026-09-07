@@ -17,12 +17,14 @@ import {
   SessionData,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
+  finishActivity,
 } from "./store";
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
 import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
 import { buildCurrentTimePromptHint } from "./time-context";
+import { buildActivityReturnPromptHint, currentActivity, expiredReturnActivity } from "./activities";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -38,6 +40,7 @@ export interface ReconnectResult {
 export async function attemptReconnect(session: SessionData): Promise<ReconnectResult | null> {
   const hasHistory = session.messages.length > 0;
   if (!hasHistory) return null;
+  if (currentActivity(session.activities)) return null;
 
   const mood = computeMood(session.lastMessageAt, {
     lastConversationMood: session.lastConversationMood,
@@ -63,6 +66,8 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   const spontaneousMemory = pickSpontaneousMemory(session.memories);
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
+  const returnActivity = expiredReturnActivity(session.activities);
+  const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
@@ -75,6 +80,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   if (memoryHint) systemPromptParts.push(`[먼저 연락할 때 떠올릴 수 있는 기억]\n${memoryHint}`);
   if (commitmentHint) systemPromptParts.push(commitmentHint);
+  if (activityReturnHint) systemPromptParts.push(activityReturnHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);
@@ -99,6 +105,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
         session.id,
         milestonesFromTurn({ emotion: structured.emotion, eventType: "reconnect_first_message" })[0]
       );
+      if (returnActivity) await finishActivity(session.id, returnActivity.id);
     }
 
     const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
