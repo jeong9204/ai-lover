@@ -277,6 +277,17 @@ export async function getFeedbackBonusCountToday(sessionId: string): Promise<num
   return Number(data.bonus_count) || 0;
 }
 
+export async function hasFeedbackBonusRequestToday(sessionId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("feedback_bonus_requests")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("date_key", koreanDateKey())
+    .maybeSingle();
+  if (error) return false;
+  return Boolean(data);
+}
+
 export async function getDailyMessageLimit(sessionId: string): Promise<number> {
   return DAILY_MESSAGE_LIMIT + (await getFeedbackBonusCountToday(sessionId));
 }

@@ -9,6 +9,7 @@ import {
   countMessagesToday,
   getDailyMessageLimit,
   getFeedbackBonusCountToday,
+  hasFeedbackBonusRequestToday,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
       getDailyMessageLimit(session.id),
     ]);
     const hitDailyLimit = !devMode && dailyMessageCount >= dailyMessageLimit;
-    const feedbackBonusCount = hitDailyLimit ? await getFeedbackBonusCountToday(session.id) : 0;
+    const hasFeedbackBonus = hitDailyLimit ? await hasFeedbackBonusRequestToday(session.id) : false;
     const reconnect = await attemptReconnect(session, { localOnly: hitDailyLimit });
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
       devMode,
       dailyMessageCount,
       dailyMessageLimit,
-      canRequestFeedbackBonus: hitDailyLimit && feedbackBonusCount === 0,
+      canRequestFeedbackBonus: hitDailyLimit && !hasFeedbackBonus,
     });
   } catch (err) {
     return NextResponse.json(

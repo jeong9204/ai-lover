@@ -10,6 +10,7 @@ import {
   countMessagesToday,
   getDailyMessageLimit,
   getFeedbackBonusCountToday,
+  hasFeedbackBonusRequestToday,
   ChatMessage,
   getOrCreateCharacterDailyState,
   appendRelationshipMilestone,
@@ -75,8 +76,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     metadata: { callEndedBy },
   };
   if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
-    const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
-    const canRequestFeedbackBonus = feedbackBonusCount === 0;
+    const canRequestFeedbackBonus = !(await hasFeedbackBonusRequestToday(session.id));
     const limitMessage: ChatMessage = {
       role: "system_event",
       content: "오늘은 이 통화로 마무리할게요. 내일 다시 이어서 이야기해요.",
