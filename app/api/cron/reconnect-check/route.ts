@@ -36,9 +36,9 @@ export async function POST(req: NextRequest) {
       countMessagesToday(sessionId),
       getDailyMessageLimit(sessionId),
     ]);
-    if (dailyMessageCount >= dailyMessageLimit) continue;
-
-    const reconnect = await attemptReconnect(result.session);
+    const reconnect = await attemptReconnect(result.session, {
+      localOnly: dailyMessageCount >= dailyMessageLimit,
+    });
     if (!reconnect?.reconnectMessage) continue;
 
     const subscriptions = await loadPushSubscriptions(sessionId);

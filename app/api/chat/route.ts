@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       getDailyMessageLimit(session.id),
     ]);
     const hitDailyLimit = !devMode && dailyMessageCount >= dailyMessageLimit;
-    const reconnect = hitDailyLimit ? null : await attemptReconnect(session);
+    const reconnect = await attemptReconnect(session, { localOnly: hitDailyLimit });
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
     );

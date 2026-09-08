@@ -39,12 +39,19 @@ export interface ReconnectResult {
   relationshipStage: string;
 }
 
+interface AttemptReconnectOptions {
+  localOnly?: boolean;
+}
+
 /**
  * 세션의 Presence 상태를 확인해서, 필요하면 캐릭터의 먼저 말걸기 메시지를 생성/저장한다.
  * 경과 시간은 감정/선톡 판단에만 쓰고, 화면의 날짜 구분은 실제 메시지 timestamp로 렌더링한다.
  * 아무것도 할 게 없으면(방금 대화했거나 mood가 calm이면) null을 반환한다.
  */
-export async function attemptReconnect(session: SessionData): Promise<ReconnectResult | null> {
+export async function attemptReconnect(
+  session: SessionData,
+  options: AttemptReconnectOptions = {}
+): Promise<ReconnectResult | null> {
   const hasHistory = session.messages.length > 0;
   if (!hasHistory) return null;
   if (currentActivity(session.activities)) return null;
@@ -71,6 +78,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
     });
     return { reconnectMessage, mood: "calm", relationshipStage: session.relationshipStage };
   }
+  if (options.localOnly) return null;
 
   const mood = computeMood(session.lastMessageAt, {
     lastConversationMood: session.lastConversationMood,
