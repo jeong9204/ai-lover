@@ -57,6 +57,7 @@ export async function attemptReconnect(
   if (currentActivity(session.activities)) return null;
 
   const scheduledCall = expiredScheduledCall(session.activities);
+  if (scheduledCall && options.localOnly) return null;
   if (scheduledCall) {
     const now = Date.now();
     const reconnectMessage: ChatMessage = {
