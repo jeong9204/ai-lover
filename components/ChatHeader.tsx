@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   devMode: boolean;
   onTogglePushSubscription: () => void;
   onResetSession: () => void;
+  onOpenAdminCosts: () => void;
   onOpenProfile: () => void;
 }
 
@@ -30,6 +31,7 @@ export function ChatHeader({
   devMode,
   onTogglePushSubscription,
   onResetSession,
+  onOpenAdminCosts,
   onOpenProfile,
 }: ChatHeaderProps) {
   return (
@@ -57,6 +59,14 @@ export function ChatHeader({
         )}
         {devMode && (
           <>
+            <button
+              onClick={onOpenAdminCosts}
+              disabled={loading || callEnding}
+              title="LLM 토큰/비용 보기"
+              className="text-sm font-semibold text-gray-600 disabled:opacity-40"
+            >
+              비용
+            </button>
             <button
               onClick={onResetSession}
               disabled={resetting || loading || callEnding}

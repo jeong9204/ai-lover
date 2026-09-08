@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { PERSONA_NAME, isLaughterOnlyMessage, personaTypeLabel, PersonaType } from "@/lib/persona";
 import { formatCallDuration } from "@/lib/events";
 import { CallOverlay } from "@/components/CallOverlay";
+import { AdminCostData, AdminCostModal } from "@/components/AdminCostModal";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { CharacterProfileModal } from "@/components/CharacterProfileModal";
@@ -124,6 +125,10 @@ export default function Home() {
   const [feedbackInput, setFeedbackInput] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [adminCostOpen, setAdminCostOpen] = useState(false);
+  const [adminCostData, setAdminCostData] = useState<AdminCostData | null>(null);
+  const [adminCostLoading, setAdminCostLoading] = useState(false);
+  const [adminCostError, setAdminCostError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -466,6 +471,27 @@ export default function Home() {
     }
   }
 
+  async function loadAdminCosts() {
+    if (!devMode || adminCostLoading) return;
+    setAdminCostLoading(true);
+    setAdminCostError(null);
+    try {
+      const res = await fetchWithSession("/api/admin/llm-costs");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "비용 데이터를 불러오지 못했어요.");
+      setAdminCostData(data);
+    } catch (e) {
+      setAdminCostError(e instanceof Error ? e.message : "비용 데이터를 불러오지 못했어요.");
+    } finally {
+      setAdminCostLoading(false);
+    }
+  }
+
+  function openAdminCosts() {
+    setAdminCostOpen(true);
+    void loadAdminCosts();
+  }
+
   // 탭을 열어둔 채 기다리면, 캐릭터가 먼저 말 걸었는지 조용히 주기적으로 확인한다.
   // (전송 중일 때는 건너뛰고, 실패해도 에러 배너 없이 조용히 무시 — 백그라운드 확인이라서)
   // 단, 탭이 안 보이는 동안(다른 탭으로 전환 / 창 최소화)은 폴링을 완전히 멈춘다 — 안 보이는
@@ -754,6 +780,7 @@ export default function Home() {
         devMode={devMode}
         onTogglePushSubscription={togglePushSubscription}
         onResetSession={resetSession}
+        onOpenAdminCosts={openAdminCosts}
         onOpenProfile={() => setProfileOpen(true)}
       />
 
@@ -841,6 +868,15 @@ export default function Home() {
         commitments={commitments}
         activities={activities}
         onClose={() => setProfileOpen(false)}
+      />
+
+      <AdminCostModal
+        open={adminCostOpen}
+        data={adminCostData}
+        loading={adminCostLoading}
+        error={adminCostError}
+        onClose={() => setAdminCostOpen(false)}
+        onRefresh={loadAdminCosts}
       />
     </main>
   );
