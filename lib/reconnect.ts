@@ -24,7 +24,12 @@ import { milestonesFromTurn } from "./milestones";
 import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
 import { buildCurrentTimePromptHint } from "./time-context";
-import { buildActivityReturnPromptHint, currentActivity, expiredReturnActivity } from "./activities";
+import {
+  buildActivityReturnPromptHint,
+  buildActivityReturnTrigger,
+  currentActivity,
+  expiredReturnActivity,
+} from "./activities";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -46,10 +51,11 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
     lastConversationMood: session.lastConversationMood,
     relationshipStage: session.relationshipStage,
   });
+  const returnActivity = expiredReturnActivity(session.activities);
 
   // 선톡이 실제로 필요한지 먼저 판단한다. claimReconnectSlot은 last_active_at을 "지금"으로
   // 갱신하므로, 단순히 시간이 지났다는 이유만으로 호출하면 Presence가 리셋되어 버린다.
-  const wantsReconnectMessage = shouldSendReconnectMessage(mood.state);
+  const wantsReconnectMessage = returnActivity != null || shouldSendReconnectMessage(mood.state);
   if (!wantsReconnectMessage) return null;
 
   // 동시에 여러 요청이 이 세션을 확인하더라도(개발 모드의 이중 마운트, 탭 폴링과 새로고침이
@@ -66,7 +72,6 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   const spontaneousMemory = pickSpontaneousMemory(session.memories);
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
-  const returnActivity = expiredReturnActivity(session.activities);
   const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
   const systemPromptParts = [
     PERSONA_BASE,
@@ -87,7 +92,8 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   if (limitResumeHint) systemPromptParts.push(limitResumeHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const history: LLMMessage[] = buildEventHistory(session.messages, buildReconnectTrigger(mood.elapsedMs, mood.state));
+  const historyTrigger = returnActivity ? buildActivityReturnTrigger(returnActivity) : buildReconnectTrigger(mood.elapsedMs, mood.state);
+  const history: LLMMessage[] = buildEventHistory(session.messages, historyTrigger);
 
   try {
     const structured = await generateStructuredReply(systemPrompt, history, { maxTokens: 360 });

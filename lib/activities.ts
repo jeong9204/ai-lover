@@ -63,7 +63,18 @@ export function buildActivityReturnPromptHint(activity: CharacterActivity | null
   return `
 [활동 종료 후 먼저 연락]
 너는 아까 "${activity.sourceMessage ?? activity.title}"라고 말하며 잠깐 자리를 비웠고, 이제 ${activity.title} 상태가 끝났어.
-유저가 아직 아무 말도 하지 않았으니, "나 이제 좀 정리됐다", "늦었지" 같은 식으로 자연스럽게 먼저 돌아와.
+유저가 아직 새로 말을 건 게 아니라, 네가 먼저 돌아와 답장하는 상황이야.
+"왔네?", "왔어?", "일 끝났어?"처럼 유저가 돌아온 것처럼 말하지 마.
+"나 이제 좀 정리됐다", "늦었지", "기다렸지" 같은 식으로 네가 일을 끝내고 돌아온 말투로 이어가.
 유저를 탓하지 말고, 기다리게 했다면 가볍게 미안한 티만 내.
 `.trim();
+}
+
+export function buildActivityReturnTrigger(activity: CharacterActivity): string {
+  return (
+    `[시스템: 네가 아까 "${activity.sourceMessage ?? activity.title}"라고 말하며 잠깐 자리를 비웠고, ` +
+    `이제 네 일이 끝나서 유저에게 먼저 답장한다. 유저가 방금 새 메시지를 보낸 것이 아니다. ` +
+    `"왔네?", "일 끝났어?"처럼 유저가 돌아왔거나 유저 일을 묻는 말로 시작하지 말고, ` +
+    `네가 돌아왔다는 내용으로 짧게 이어라.]`
+  );
 }
