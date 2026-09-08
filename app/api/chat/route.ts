@@ -47,6 +47,7 @@ import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
+import { checkLLMRateLimit } from "@/lib/rate-limit";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -226,6 +227,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       dailyMessageCount: await countMessagesToday(session.id),
       dailyMessageLimit: await getDailyMessageLimit(session.id),
     });
+  }
+
+  if (!devMode) {
+    const rateLimitResponse = await checkLLMRateLimit(req, session.id);
+    if (rateLimitResponse) return rateLimitResponse;
   }
 
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당

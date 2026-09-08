@@ -28,6 +28,7 @@ import { isDeveloperRequest } from "@/lib/dev-mode";
 import { buildConversationSummaryHint, buildEventHistory } from "@/lib/llm-context";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
+import { checkLLMRateLimit } from "@/lib/rate-limit";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -79,6 +80,11 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
       },
       { status: 429 }
     );
+  }
+
+  if (!devMode) {
+    const rateLimitResponse = await checkLLMRateLimit(req, session.id);
+    if (rateLimitResponse) return rateLimitResponse;
   }
 
   const now = Date.now();
