@@ -317,6 +317,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       content: "메시지를 삭제했습니다.",
       timestamp: now + 1,
       eventType: "deleted_message",
+      usage: structured.usage,
     });
   } else if (structured.message) {
     replyEventType =
@@ -332,6 +333,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       content: structured.message,
       timestamp: now + 1,
       eventType: replyEventType,
+      usage: structured.usage,
     });
 
     photoMessage = pendingPhotoMessage ? { ...pendingPhotoMessage, timestamp: now + 2 } : null;

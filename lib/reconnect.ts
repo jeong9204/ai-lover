@@ -99,6 +99,7 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
         content: structured.message,
         timestamp: now,
         eventType: "reconnect_first_message",
+        usage: structured.usage,
       };
       await appendMessage(session.id, reconnectMessage);
       await appendRelationshipMilestone(

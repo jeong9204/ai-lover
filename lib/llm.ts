@@ -3,6 +3,7 @@
 // 대사 생성 + 감정/관계/기억/이벤트 판단을 tool_choice로 강제한 구조화 출력 1회 호출로 받는다.
 
 import { StructuredReplySchema, StructuredReply, EmotionEnum } from "./schema";
+import { buildLLMTokenUsage, LLMTokenUsage } from "./llm-cost";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = "claude-sonnet-5";
@@ -17,6 +18,10 @@ export interface LLMMessage {
 interface GenerateStructuredReplyOptions {
   maxTokens?: number;
 }
+
+export type StructuredReplyWithUsage = StructuredReply & {
+  usage: LLMTokenUsage | null;
+};
 
 function resolveMaxTokens(override?: number): number {
   if (override) return override;
@@ -76,7 +81,7 @@ export async function generateStructuredReply(
   systemPrompt: string,
   messages: LLMMessage[],
   options: GenerateStructuredReplyOptions = {}
-): Promise<StructuredReply> {
+): Promise<StructuredReplyWithUsage> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -84,6 +89,7 @@ export async function generateStructuredReply(
     );
   }
 
+  const model = process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL;
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
@@ -92,7 +98,7 @@ export async function generateStructuredReply(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
+      model,
       max_tokens: resolveMaxTokens(options.maxTokens),
       system: systemPrompt,
       messages,
@@ -148,5 +154,12 @@ export async function generateStructuredReply(
   if (!parsed.data.message && !parsed.data.event) {
     throw new Error("빈 응답을 받았습니다. 다시 시도해주세요.");
   }
-  return parsed.data;
+  const usage = data?.usage
+    ? buildLLMTokenUsage({
+        model: typeof data.model === "string" ? data.model : model,
+        inputTokens: Number(data.usage.input_tokens) || 0,
+        outputTokens: Number(data.usage.output_tokens) || 0,
+      })
+    : null;
+  return { ...parsed.data, usage };
 }

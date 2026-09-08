@@ -13,6 +13,7 @@ import {
   pickCharacterProfile,
   pickInitialMessage,
 } from "./persona";
+import { LLMTokenUsage } from "./llm-cost";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
@@ -29,6 +30,7 @@ export interface ChatMessage {
     | "meetup_completed"
     | null;
   metadata?: MessageMetadata | null;
+  usage?: LLMTokenUsage | null;
 }
 
 export interface PhotoAttachment {
@@ -530,6 +532,11 @@ export async function appendMessage(sessionId: string, message: ChatMessage): Pr
     event_type: ChatMessage["eventType"];
     created_at: string;
     metadata?: MessageMetadata | null;
+    model?: string | null;
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    total_tokens?: number | null;
+    estimated_cost_usd?: number | null;
   } = {
     session_id: sessionId,
     role: message.role,
@@ -541,19 +548,25 @@ export async function appendMessage(sessionId: string, message: ChatMessage): Pr
   if (message.metadata) {
     row.metadata = message.metadata;
   }
+  if (message.usage) {
+    row.model = message.usage.model;
+    row.input_tokens = message.usage.inputTokens;
+    row.output_tokens = message.usage.outputTokens;
+    row.total_tokens = message.usage.totalTokens;
+    row.estimated_cost_usd = message.usage.estimatedCostUsd;
+  }
 
   const { error } = await supabase.from("messages").insert(row);
   if (!error) return;
 
-  if (message.metadata) {
-    await supabase.from("messages").insert({
-      session_id: sessionId,
-      role: message.role,
-      content: message.content,
-      event_type: message.eventType ?? null,
-      created_at: new Date(message.timestamp).toISOString(),
-    });
-  }
+  await supabase.from("messages").insert({
+    session_id: sessionId,
+    role: message.role,
+    content: message.content,
+    event_type: message.eventType ?? null,
+    created_at: new Date(message.timestamp).toISOString(),
+    ...(message.metadata ? { metadata: message.metadata } : {}),
+  });
 }
 
 function normalizeMemoryText(text: string): string {
