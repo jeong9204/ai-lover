@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
       getDailyMessageLimit(session.id),
     ]);
     const hitDailyLimit = !devMode && dailyMessageCount >= dailyMessageLimit;
+    const feedbackBonusCount = hitDailyLimit ? await getFeedbackBonusCountToday(session.id) : 0;
     const reconnect = await attemptReconnect(session, { localOnly: hitDailyLimit });
     const extraMessages: ChatMessage[] = [reconnect?.reconnectMessage].filter(
       (m): m is ChatMessage => m != null
@@ -112,6 +113,7 @@ export async function GET(req: NextRequest) {
       devMode,
       dailyMessageCount,
       dailyMessageLimit,
+      canRequestFeedbackBonus: hitDailyLimit && feedbackBonusCount === 0,
     });
   } catch (err) {
     return NextResponse.json(

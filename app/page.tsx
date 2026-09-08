@@ -213,9 +213,28 @@ export default function Home() {
     setFeedbackError(null);
   }
 
-  function syncLimitNoticeFromUsage(data: { dailyMessageCount?: number; dailyMessageLimit?: number; devMode?: boolean }) {
+  function syncLimitNoticeFromUsage(data: {
+    dailyMessageCount?: number;
+    dailyMessageLimit?: number;
+    devMode?: boolean;
+    canRequestFeedbackBonus?: boolean;
+  }) {
     if (data.devMode) {
       clearLimitNotice();
+      return;
+    }
+    if (
+      typeof data.dailyMessageCount === "number" &&
+      typeof data.dailyMessageLimit === "number" &&
+      data.dailyMessageCount >= data.dailyMessageLimit
+    ) {
+      const canRequestBonus = Boolean(data.canRequestFeedbackBonus);
+      showLimitNotice(
+        canRequestBonus
+          ? "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요."
+          : "오늘 추가 대화 횟수까지 다 썼어요. 내일 다시 이야기해요!",
+        canRequestBonus
+      );
       return;
     }
     if (
