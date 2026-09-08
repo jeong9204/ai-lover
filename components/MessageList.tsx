@@ -102,7 +102,11 @@ export function MessageList({
                 <div className="h-px flex-1 bg-gray-400/40" />
               </div>
             ) : m.role === "system_event" ? (
-              <p className="py-1 text-center text-xs text-gray-500">
+              <p
+                className={`py-1 text-center text-xs ${
+                  m.eventType === "limit_reached" ? "text-red-700" : "text-gray-500"
+                }`}
+              >
                 {m.content}
               </p>
             ) : m.eventType === "confession_ending" ? (

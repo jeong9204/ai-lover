@@ -756,6 +756,15 @@ export default function Home() {
           eventType: data.replyMessage.eventType ?? null,
         });
       }
+      if (data.limitMessage) {
+        appended.push({
+          role: "system_event",
+          content: data.limitMessage.content,
+          timestamp: Date.now(),
+          eventType: data.limitMessage.eventType ?? "limit_reached",
+          metadata: data.limitMessage.metadata ?? { limitBlocked: true },
+        });
+      }
       setMessages((prev) => [...prev, ...appended]);
       setMood(data.mood ?? mood);
       setEmotion(data.emotion ?? emotion);

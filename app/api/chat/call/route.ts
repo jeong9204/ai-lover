@@ -66,27 +66,6 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     countMessagesToday(session.id),
     getDailyMessageLimit(session.id),
   ]);
-  if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
-    const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
-    const canRequestFeedbackBonus = feedbackBonusCount === 0;
-    return NextResponse.json(
-      {
-        error: canRequestFeedbackBonus
-          ? "오늘 대화 횟수를 다 썼어요. 피드백을 남기면 오늘 20회 더 대화할 수 있어요."
-          : "오늘 추가 대화 횟수까지 다 썼어요. 내일 다시 이야기해요!",
-        canRequestFeedbackBonus,
-        dailyMessageCount: messageCountBeforeCall,
-        dailyMessageLimit,
-      },
-      { status: 429 }
-    );
-  }
-
-  if (!devMode) {
-    const rateLimitResponse = await checkLLMRateLimit(req, session.id);
-    if (rateLimitResponse) return rateLimitResponse;
-  }
-
   const now = Date.now();
   const callEndedMessage: ChatMessage = {
     role: "system_event",
@@ -95,6 +74,43 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     eventType: "call_ended",
     metadata: { callEndedBy },
   };
+  if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
+    const feedbackBonusCount = await getFeedbackBonusCountToday(session.id);
+    const canRequestFeedbackBonus = feedbackBonusCount === 0;
+    const limitMessage: ChatMessage = {
+      role: "system_event",
+      content: "오늘은 이 통화로 마무리할게요. 내일 다시 이어서 이야기해요.",
+      timestamp: now + 1,
+      eventType: "limit_reached",
+      metadata: { limitBlocked: true },
+    };
+    await appendMessage(session.id, callEndedMessage);
+    await appendMessage(session.id, limitMessage);
+    await appendRelationshipMilestone(
+      session.id,
+      milestonesFromTurn({ emotion: session.emotion as Emotion, eventType: "call_ended", durationSec: clampedDuration })[0]
+    );
+    await updateSession(session.id, {
+      lastActiveAt: now,
+    });
+    return NextResponse.json(
+      {
+        callEndedMessage,
+        limitMessage,
+        canRequestFeedbackBonus,
+        dailyMessageCount: messageCountBeforeCall,
+        dailyMessageLimit,
+        devMode,
+      },
+      { status: 200 }
+    );
+  }
+
+  if (!devMode) {
+    const rateLimitResponse = await checkLLMRateLimit(req, session.id);
+    if (rateLimitResponse) return rateLimitResponse;
+  }
+
   await appendMessage(session.id, callEndedMessage);
   await appendRelationshipMilestone(
     session.id,

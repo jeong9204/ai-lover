@@ -5,6 +5,7 @@ export type EventType =
   | "reconnect_first_message"
   | "call_request"
   | "call_ended"
+  | "limit_reached"
   | "confession_ending"
   | "photo_shared"
   | "meetup_request"
