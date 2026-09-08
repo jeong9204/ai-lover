@@ -2,6 +2,9 @@ import type { CharacterActivity, CharacterActivityDraft } from "./store";
 
 const HOUR = 60 * 60 * 1000;
 const DEFAULT_BUSY_DURATION_MS = 2 * HOUR;
+const MINUTE = 60 * 1000;
+const DEFAULT_SCHEDULED_CALL_DELAY_MS = 5 * MINUTE;
+const MAX_SCHEDULED_CALL_DELAY_MS = 60 * MINUTE;
 
 function normalize(text: string): string {
   return text
@@ -24,11 +27,43 @@ function looksLikeBusyWorkClosure(text: string): boolean {
   );
 }
 
+function scheduledCallDelayMs(text: string): number | null {
+  if (!/(전화|통화|폰).*(걸|할|하자|받|들고|들어)|(?:걸|전화|통화).*(폰|전화|통화)/u.test(text)) {
+    return null;
+  }
+
+  const minuteMatch = text.match(/(\d{1,2})\s*분/u);
+  if (minuteMatch) {
+    const minutes = Number(minuteMatch[1]);
+    if (Number.isFinite(minutes) && minutes > 0) {
+      return Math.min(minutes * MINUTE, MAX_SCHEDULED_CALL_DELAY_MS);
+    }
+  }
+
+  if (/(금방|곧|잠깐만|조금만|씻고|나오면|나와서|도착하면)/u.test(text)) {
+    return DEFAULT_SCHEDULED_CALL_DELAY_MS;
+  }
+
+  return null;
+}
+
 export function extractActivityFromAssistantReply(
   assistantMessage: string,
   timestamp = Date.now()
 ): CharacterActivityDraft | null {
   const text = normalize(assistantMessage);
+  const callDelayMs = scheduledCallDelayMs(text);
+  if (callDelayMs) {
+    return {
+      type: "scheduled_call",
+      title: "전화 걸 준비 중",
+      detail: "조금 뒤 먼저 전화하려는 중",
+      startsAt: timestamp,
+      endsAt: timestamp + callDelayMs,
+      sourceMessage: compact(text),
+    };
+  }
+
   if (!looksLikeBusyWorkClosure(text)) return null;
 
   return {
@@ -51,11 +86,32 @@ export function expiredReturnActivity(activities: CharacterActivity[], now = Dat
 
 export function buildActivityPromptHint(activity: CharacterActivity | null): string {
   if (!activity) return "";
+  if (activity.type === "scheduled_call") {
+    return `
+[현재 캐릭터 활동]
+너는 방금 전 대화에서 "${activity.sourceMessage ?? activity.title}"라고 말했고, 지금은 전화할 준비를 하는 중이야.
+유저가 먼저 말을 걸면 답장은 할 수 있지만, 아직 통화가 시작된 척하지 말고 곧 전화하겠다는 흐름을 유지해.
+`.trim();
+  }
+
   return `
 [현재 캐릭터 활동]
 너는 방금 전 대화에서 "${activity.sourceMessage ?? activity.title}"라고 말했고, 지금은 ${activity.title} 상태야.
 유저가 먼저 말을 걸면 답장은 할 수 있지만, 한가한 척 오래 붙잡지는 마. 잠깐 확인했다는 느낌으로 짧고 자연스럽게 답해.
 `.trim();
+}
+
+export function expiredScheduledCall(activities: CharacterActivity[], now = Date.now()): CharacterActivity | null {
+  return (
+    activities.find(
+      (activity) => activity.type === "scheduled_call" && activity.status === "active" && activity.endsAt <= now
+    ) ?? null
+  );
+}
+
+export function buildScheduledCallMessage(activity: CharacterActivity): string {
+  const source = activity.sourceMessage ? `아까 ${activity.sourceMessage.includes("전화") ? "전화한다고" : "말한 거"} ` : "";
+  return `${source}기다렸지? 나 지금 전화 걸게.`;
 }
 
 export function buildActivityReturnPromptHint(activity: CharacterActivity | null): string {

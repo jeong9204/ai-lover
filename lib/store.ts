@@ -78,7 +78,7 @@ export interface Commitment {
 
 export interface CharacterActivity {
   id: string;
-  type: "busy_work";
+  type: "busy_work" | "scheduled_call";
   title: string;
   detail: string | null;
   status: "active" | "done" | "cancelled";

@@ -169,7 +169,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
       inferMemoryType({ emotion: structured.emotion, eventType: replyEventType, memory: structured.memory })
     );
   }
-  const activity = extractActivityFromAssistantReply(structured.message, now + 1);
+  const activity =
+    replyEventType === "call_request" ? null : extractActivityFromAssistantReply(structured.message, now + 1);
   await appendActivity(session.id, activity);
   const responseActivities = activity
     ? [

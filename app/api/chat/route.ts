@@ -410,7 +410,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     assistantMessage: structured.message,
   });
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
-  const activity = extractActivityFromAssistantReply(structured.message, now + 1);
+  const activity =
+    replyEventType === "call_request" ? null : extractActivityFromAssistantReply(structured.message, now + 1);
   await appendActivity(session.id, activity);
   const responseCommitments: Commitment[] =
     commitments.length > 0

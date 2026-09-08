@@ -27,7 +27,9 @@ import { buildCurrentTimePromptHint } from "./time-context";
 import {
   buildActivityReturnPromptHint,
   buildActivityReturnTrigger,
+  buildScheduledCallMessage,
   currentActivity,
+  expiredScheduledCall,
   expiredReturnActivity,
 } from "./activities";
 
@@ -46,6 +48,29 @@ export async function attemptReconnect(session: SessionData): Promise<ReconnectR
   const hasHistory = session.messages.length > 0;
   if (!hasHistory) return null;
   if (currentActivity(session.activities)) return null;
+
+  const scheduledCall = expiredScheduledCall(session.activities);
+  if (scheduledCall) {
+    const now = Date.now();
+    const reconnectMessage: ChatMessage = {
+      role: "assistant",
+      content: buildScheduledCallMessage(scheduledCall),
+      timestamp: now,
+      eventType: "call_request",
+      metadata: { localReply: true },
+    };
+    await appendMessage(session.id, reconnectMessage);
+    await appendRelationshipMilestone(
+      session.id,
+      milestonesFromTurn({ emotion: session.emotion as Emotion, eventType: "call_request" })[0]
+    );
+    await finishActivity(session.id, scheduledCall.id);
+    await updateSession(session.id, {
+      lastConversationMood: "warm",
+      lastActiveAt: now,
+    });
+    return { reconnectMessage, mood: "calm", relationshipStage: session.relationshipStage };
+  }
 
   const mood = computeMood(session.lastMessageAt, {
     lastConversationMood: session.lastConversationMood,
