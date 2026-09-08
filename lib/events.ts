@@ -112,6 +112,26 @@ export function hasRecentMeetupContext(messages: ChatMessage[], lookback = 12): 
   return messages.slice(-lookback).some((message) => message.eventType === "meetup_completed");
 }
 
+const MEETUP_TRAVEL_CONTEXT_PATTERN =
+  /(가는\s*중|뛰어\s*갈|뛰어갈|갈게|갈께|가고\s*있|거의\s*다\s*왔|다\s*왔|도착하면|잠깐만\s*기다려|조금만\s*기다려|손\s*흔들|보인다|보여)/;
+
+const MEETUP_ARRIVAL_SIGNAL_PATTERN =
+  /(다\s*왔|도착|여기\s*(야|여기|있|왔다)|저기\s*있|앞이야|앞에\s*있|근처야|손\s*(흔들|들고)|보여\??|보이니|빨리\s*와|얼른\s*와|넘어지면\s*안\s*돼|넘어지지\s*마)/;
+
+export function hasPendingMeetupTravelContext(messages: ChatMessage[], lookback = 10): boolean {
+  const recent = messages.slice(-lookback);
+  if (recent.some((message) => message.eventType === "meetup_completed")) return false;
+  return recent
+    .filter((message) => message.role === "assistant")
+    .some((message) => MEETUP_TRAVEL_CONTEXT_PATTERN.test(message.content.replace(/\s+/g, " ").trim()));
+}
+
+export function isMeetupArrivalSignal(message: string): boolean {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  return MEETUP_ARRIVAL_SIGNAL_PATTERN.test(normalized);
+}
+
 export function buildAfterMeetupPromptHint(hasContext: boolean, personaType: PersonaType): string {
   if (!hasContext) return "";
 

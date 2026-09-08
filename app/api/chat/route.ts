@@ -33,7 +33,9 @@ import {
   buildMeetupCompletedLabel,
   buildMeetupReturnMessage,
   hasRecentMeetupContext,
+  hasPendingMeetupTravelContext,
   isExplicitMeetupRequest,
+  isMeetupArrivalSignal,
   isMeetupAcceptanceReply,
   recentDeletedMessageHint,
 } from "@/lib/events";
@@ -308,10 +310,13 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     userMessage: message,
     assistantMessage: structured.message,
   });
-  const canCreateMeetup = isExplicitMeetupRequest(message);
+  const hasArrivalMeetupSignal = hasPendingMeetupTravelContext(session.messages) && isMeetupArrivalSignal(message);
+  const canCreateMeetup = isExplicitMeetupRequest(message) || hasArrivalMeetupSignal;
   const shouldCreateMeetup =
     canCreateMeetup &&
-    (structured.event?.type === "meetup_request" || isMeetupAcceptanceReply(structured.message));
+    (hasArrivalMeetupSignal ||
+      structured.event?.type === "meetup_request" ||
+      isMeetupAcceptanceReply(structured.message));
 
   let replyEventType: ChatMessage["eventType"] = null;
   let photoMessage: ChatMessage | null = null;
