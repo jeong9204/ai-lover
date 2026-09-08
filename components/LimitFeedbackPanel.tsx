@@ -21,7 +21,7 @@ export function LimitFeedbackPanel({
     <div className="rounded-xl bg-white/85 px-4 py-3 text-sm text-gray-800 shadow">
       <p className="font-semibold">{message}</p>
       <p className="mt-1 text-xs text-gray-500">
-        피드백은 현재 대화 상태와 마지막 메시지 일부와 함께 저장돼요.
+        피드백은 현재 대화 상태와 마지막 메시지 일부와 함께 저장돼요. 민감한 개인정보는 적지 않는 게 좋아요.
       </p>
       <textarea
         className="mt-3 min-h-20 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-yellow-400"

@@ -47,6 +47,9 @@ export function NamePrompt({
           건너뛰기
         </button>
       </div>
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-400">
+        대화는 익명 세션 기준으로 저장돼요. 피드백을 남기면 마지막 대화 일부와 상태 정보도 함께 저장돼요.
+      </p>
     </div>
   );
 }
