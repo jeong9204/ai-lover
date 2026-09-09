@@ -38,6 +38,7 @@ import {
   isExplicitMeetupRequest,
   isMeetupArrivalSignal,
   isMeetupAcceptanceReply,
+  isMeetupPlanningOnlyMessage,
   recentDeletedMessageHint,
 } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
@@ -328,7 +329,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     assistantMessage: structured.message,
   });
   const hasArrivalMeetupSignal = hasPendingMeetupTravelContext(session.messages) && isMeetupArrivalSignal(message);
-  const canCreateMeetup = isExplicitMeetupRequest(message) || hasArrivalMeetupSignal;
+  const meetupPlanningOnly = isMeetupPlanningOnlyMessage(message);
+  const canCreateMeetup = !meetupPlanningOnly && (isExplicitMeetupRequest(message) || hasArrivalMeetupSignal);
   const shouldCreateMeetup =
     canCreateMeetup &&
     (hasArrivalMeetupSignal ||

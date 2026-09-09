@@ -91,12 +91,20 @@ const EXPLICIT_MEETUP_REQUEST_PATTERN =
   /(지금\s*(볼래|보자|만날래|만나자|나와|나올래|올래)|오늘\s*(볼래|보자|만날래|만나자)|잠깐\s*(볼래|보자|볼|만날래|만나자|나와|나올래)|이따\s*(봐|보자|볼래|만날래|만나자)|좀\s*있다\s*(봐|보자|볼래|만날래|만나자)|곧\s*(봐|보자|볼래|만날래|만나자)|밖에서\s*(봐|보자|볼래|만날래|만나자)|공원에서\s*(봐|보자|볼래|만날래|만나자)|산책\s*(갈래|가자|할래)|나와|나올래|와줄래|올래|데리러\s*(갈게|와|올래)|보러\s*(갈게|와|올래))/;
 
 const MEETUP_FALSE_POSITIVE_PATTERN =
-  /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고|물어\s*봐|알아\s*봐|확인해\s*봐|해\s*봐|봐\s*볼래|그날\s*(봐|보자|볼래)|그때\s*(봐|보자|볼래)|나중에\s*(봐|보자|볼래|말|연락|알려|해)|언젠가\s*(봐|보자|볼래)|다음에\s*(봐|보자|볼래)|내일\s*(봐|보자|볼래)|모레\s*(봐|보자|볼래)|(월|화|수|목|금|토|일)요일에?\s*(봐|보자|볼래)|이따\s*(말|연락|알려|해))/;
+  /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고|물어\s*봐|알아\s*봐|확인해\s*봐|해\s*봐|봐\s*볼래|데이트\s*때|입을\s*옷|옷\s*(고르|골라|뭐\s*입)|뭐\s*입고|장소\s*(정하|고르)|그날\s*(봐|보자|볼래)|그때\s*(봐|보자|볼래)|나중에\s*(봐|보자|볼래|말|연락|알려|해)|언젠가\s*(봐|보자|볼래)|다음에\s*(봐|보자|볼래)|내일\s*(봐|보자|볼래|보면|만나|데이트)|모레\s*(봐|보자|볼래|만나|데이트)|(월|화|수|목|금|토|일)요일에?\s*(봐|보자|볼래|만나|데이트)|이따\s*(말|연락|알려|해))/;
 
 export function isExplicitMeetupRequest(message: string): boolean {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!EXPLICIT_MEETUP_REQUEST_PATTERN.test(normalized)) return false;
   return !MEETUP_FALSE_POSITIVE_PATTERN.test(normalized);
+}
+
+export function isMeetupPlanningOnlyMessage(message: string): boolean {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  return /(내일|모레|데이트\s*때|그날|그때|다음에|나중에|요일).*(입을\s*옷|옷\s*(고르|골라)|뭐\s*입고|장소|카페|맛집|어디\s*갈|뭐\s*할|보면)|(?:입을\s*옷|옷\s*(고르|골라)|뭐\s*입고|장소|카페|맛집|어디\s*갈).*(내일|모레|데이트\s*때|그날|그때|다음에|나중에|요일)/u.test(
+    normalized
+  );
 }
 
 const MEETUP_REJECTION_PATTERN =
@@ -116,7 +124,7 @@ const MEETUP_TRAVEL_CONTEXT_PATTERN =
   /(가는\s*중|뛰어\s*갈|뛰어갈|갈게|갈께|가고\s*있|거의\s*다\s*왔|다\s*왔|도착하면|잠깐만\s*기다려|조금만\s*기다려|손\s*흔들|보인다|보여)/;
 
 const MEETUP_ARRIVAL_SIGNAL_PATTERN =
-  /(다\s*왔|도착|여기\s*(야|여기|있|왔다)|저기\s*있|앞이야|앞에\s*있|근처야|손\s*(흔들|들고)|보여\??|보이니|빨리\s*와|얼른\s*와|넘어지면\s*안\s*돼|넘어지지\s*마)/;
+  /(다\s*왔|도착|여기\s*(야|여기|있|왔다)|저기\s*있|앞이야|앞에\s*있|근처야|손\s*(흔들|들고)|보여\??$|보이니|빨리\s*와|얼른\s*와|넘어지면\s*안\s*돼|넘어지지\s*마)/;
 
 export function hasPendingMeetupTravelContext(messages: ChatMessage[], lookback = 10): boolean {
   const recent = messages.slice(-lookback);
