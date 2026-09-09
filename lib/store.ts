@@ -350,15 +350,13 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 
   if (error || !data) return [];
-  const messages = data
-    .filter((m) => m.event_type !== "time_skip")
-    .map((m) => ({
-      role: m.role as ChatMessage["role"],
-      content: m.content,
-      timestamp: new Date(m.created_at).getTime(),
-      eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
-      metadata: "metadata" in m ? (m.metadata as MessageMetadata | null) : null,
-    }));
+  const messages = data.map((m) => ({
+    role: m.role as ChatMessage["role"],
+    content: m.content,
+    timestamp: new Date(m.created_at).getTime(),
+    eventType: (m.event_type as ChatMessage["eventType"]) ?? null,
+    metadata: "metadata" in m ? (m.metadata as MessageMetadata | null) : null,
+  }));
   return hideInvalidMeetupSequences(messages);
 }
 

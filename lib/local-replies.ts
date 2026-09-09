@@ -3,18 +3,21 @@ import type { Emotion } from "./schema";
 
 const SHORT_REACTION_MAX_LENGTH = 10;
 
-const LOCAL_REPLIES: Record<PersonaType, Record<"laughter" | "ack", string[]>> = {
+const LOCAL_REPLIES: Record<PersonaType, Record<"laughter" | "ack" | "food", string[]>> = {
   default: {
     laughter: ["ㅋㅋ 뭐야", "왜 그렇게 웃어ㅋㅋ", "아 웃기긴 하네"],
     ack: ["응응", "그래그래", "오케이"],
+    food: ["ㅋㅋ 뭐 먹어?", "맛있게 먹어ㅋㅋ", "혼자 맛있는 거 먹는 거야?"],
   },
   northern_duke: {
     laughter: ["웃기냐.", "...그래 웃어라.", "뭐가 그렇게 웃겨."],
     ack: ["그래.", "알았어.", "응."],
+    food: ["먹고 있나.", "천천히 먹어.", "맛있게 먹어라."],
   },
   flirty: {
     laughter: ["웃는 거 귀엽네.", "ㅋㅋ 나 때문에 웃었냐?", "그렇게 웃으면 나도 웃기잖아."],
     ack: ["응, 착하네.", "알겠어. 얌전히 있어.", "그래, 그렇게 해."],
+    food: ["냠냠하는 거 귀엽네ㅋㅋ", "뭐 먹어? 나도 한입만.", "맛있게 먹어, 귀엽게 먹고 있네."],
   },
 };
 
@@ -35,7 +38,7 @@ function hashText(text: string): number {
 
 function pickReply(
   personaType: PersonaType,
-  kind: "laughter" | "ack",
+  kind: "laughter" | "ack" | "food",
   seed: string,
   recentAssistantReplies: string[] = []
 ): string {
@@ -67,6 +70,14 @@ export function buildLocalShortReactionReply(
       message: pickReply(personaType, "ack", `${seed}:${message}:ack`, recentAssistantReplies),
       emotion: "neutral",
       intensity: 0.15,
+    };
+  }
+
+  if (/^(냠+|얌+|냠냠+|얌얌+)$/.test(compact)) {
+    return {
+      message: pickReply(personaType, "food", `${seed}:${message}:food`, recentAssistantReplies),
+      emotion: "neutral",
+      intensity: 0.2,
     };
   }
 
