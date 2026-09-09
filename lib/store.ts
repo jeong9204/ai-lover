@@ -29,6 +29,7 @@ export interface ChatMessage {
     | "photo_shared"
     | "meetup_request"
     | "meetup_completed"
+    | "time_skip"
     | null;
   metadata?: MessageMetadata | null;
   usage?: LLMTokenUsage | null;

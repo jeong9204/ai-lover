@@ -1,4 +1,5 @@
 import type { CharacterActivity, CharacterActivityDraft } from "./store";
+import type { PersonaType } from "./persona";
 
 const HOUR = 60 * 60 * 1000;
 const DEFAULT_BUSY_DURATION_MS = 2 * HOUR;
@@ -25,6 +26,15 @@ function looksLikeBusyWorkClosure(text: string): boolean {
     /(이따|조금\s*있다|좀\s*있다).*(연락할게|연락할께|올게|올께|말할게)/u.test(text) ||
     /(조금만|좀만).*(기다려|기다려줘)/u.test(text)
   );
+}
+
+function looksLikeShortBusyWorkClosure(text: string): boolean {
+  if (!looksLikeBusyWorkClosure(text)) return false;
+  if (/(퇴근|밤|저녁|내일|나중|회의|마감|오래|늦게|몇\s*시간|한\s*시간|1\s*시간|2\s*시간)/u.test(text)) {
+    return false;
+  }
+
+  return /(금방|곧|잠깐|조금만|좀만|끝나자마자|끝나는\s*대로|바로|얼른|후딱|빨리)/u.test(text);
 }
 
 function scheduledCallDelayMs(text: string): number | null {
@@ -74,6 +84,26 @@ export function extractActivityFromAssistantReply(
     endsAt: timestamp + DEFAULT_BUSY_DURATION_MS,
     sourceMessage: compact(text),
   };
+}
+
+export function shouldFastForwardBusyWork(assistantMessage: string): boolean {
+  return looksLikeShortBusyWorkClosure(normalize(assistantMessage));
+}
+
+export function buildBusyWorkTimeSkipLabel(characterName: string): string {
+  return `${characterName}이 잠깐 일을 마치고 돌아왔어요.`;
+}
+
+export function buildBusyWorkReturnMessage(personaType: PersonaType): string {
+  if (personaType === "northern_duke") {
+    return "끝났어. 생각보다 빨리 정리됐다.\n기다렸으면 이제 말해.";
+  }
+
+  if (personaType === "flirty") {
+    return "나 왔다ㅋㅋ 생각보다 빨리 끝났어. 기다렸지? 아까 하던 얘기 계속하자.";
+  }
+
+  return "생각보다 금방 끝났다ㅋㅋ 기다렸지? 아까 말하던 거 이어서 하자.";
 }
 
 export function currentActivity(activities: CharacterActivity[], now = Date.now()): CharacterActivity | null {

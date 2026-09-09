@@ -49,7 +49,14 @@ import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@/lib/confession";
 import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
-import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
+import {
+  buildActivityPromptHint,
+  buildBusyWorkReturnMessage,
+  buildBusyWorkTimeSkipLabel,
+  currentActivity,
+  extractActivityFromAssistantReply,
+  shouldFastForwardBusyWork,
+} from "@/lib/activities";
 import { checkLLMRateLimit } from "@/lib/rate-limit";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -324,6 +331,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   let replyEventType: ChatMessage["eventType"] = null;
   let photoMessage: ChatMessage | null = null;
   const extraMessages: ChatMessage[] = [];
+  let didFastForwardBusyWork = false;
 
   if (structured.event?.type === "deleted_message") {
     await appendMessage(session.id, {
@@ -371,6 +379,25 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       await appendMessage(session.id, meetupCompletedMessage);
       await appendMessage(session.id, meetupReturnMessage);
       extraMessages.push(meetupCompletedMessage, meetupReturnMessage);
+    } else if (replyEventType === null && shouldFastForwardBusyWork(structured.message)) {
+      const timeSkipMessage: ChatMessage = {
+        role: "system_event",
+        content: buildBusyWorkTimeSkipLabel(session.characterName),
+        timestamp: now + 3,
+        eventType: "time_skip",
+        metadata: { localReply: true },
+      };
+      const busyWorkReturnMessage: ChatMessage = {
+        role: "assistant",
+        content: buildBusyWorkReturnMessage(session.personaType),
+        timestamp: now + 4,
+        eventType: null,
+        metadata: { localReply: true },
+      };
+      await appendMessage(session.id, timeSkipMessage);
+      await appendMessage(session.id, busyWorkReturnMessage);
+      extraMessages.push(timeSkipMessage, busyWorkReturnMessage);
+      didFastForwardBusyWork = true;
     }
   }
 
@@ -414,7 +441,9 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   });
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
   const activity =
-    replyEventType === "call_request" ? null : extractActivityFromAssistantReply(structured.message, now + 1);
+    replyEventType === "call_request" || didFastForwardBusyWork
+      ? null
+      : extractActivityFromAssistantReply(structured.message, now + 1);
   await appendActivity(session.id, activity);
   const responseCommitments: Commitment[] =
     commitments.length > 0

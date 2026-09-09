@@ -9,7 +9,8 @@ export type EventType =
   | "confession_ending"
   | "photo_shared"
   | "meetup_request"
-  | "meetup_completed";
+  | "meetup_completed"
+  | "time_skip";
 
 export interface PhotoAttachment {
   url: string;
