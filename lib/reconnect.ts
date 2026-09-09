@@ -21,7 +21,12 @@ import {
 } from "./store";
 import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
-import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
+import {
+  buildConversationSummaryHint,
+  buildEventHistory,
+  buildLimitResumePromptHint,
+  buildWorkLoopAvoidanceHint,
+} from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
 import { buildCurrentTimePromptHint } from "./time-context";
 import { isDifferentKoreanDay } from "./korean-date";
@@ -150,6 +155,8 @@ export async function attemptReconnect(
   if (limitEndingHint) systemPromptParts.push(limitEndingHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
+  if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);
   if (limitResumeHint) systemPromptParts.push(limitResumeHint);
   const systemPrompt = systemPromptParts.join("\n\n");

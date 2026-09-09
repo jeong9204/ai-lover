@@ -21,10 +21,12 @@ function compact(text: string, max = 120): string {
 }
 
 function looksLikeBusyWorkClosure(text: string): boolean {
-  return (
-    /(일|회사|업무|회의|작업|근무|마감).*(끝나|끝내|마치|정리).*(연락|올게|올께|카톡|말할게)/u.test(text) ||
-    /(이따|조금\s*있다|좀\s*있다).*(연락할게|연락할께|올게|올께|말할게)/u.test(text) ||
-    /(조금만|좀만).*(기다려|기다려줘)/u.test(text)
+  if (!/(일|회사|업무|회의|작업|근무|마감|퇴근|해야\s*돼|해야\s*해|정리해야|끝내야)/u.test(text)) {
+    return false;
+  }
+
+  return /(끝나|끝내|마치|정리|퇴근|이따|조금\s*있다|좀\s*있다|조금만|좀만).*(연락|올게|올께|카톡|톡|말할게|기다려|기다려줘)/u.test(
+    text
   );
 }
 

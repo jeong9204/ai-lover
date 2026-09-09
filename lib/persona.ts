@@ -32,7 +32,7 @@ const PERSONA_TYPE_LABELS: Record<PersonaType, string> = {
 };
 
 const INITIAL_MESSAGES = [
-  "야\n너 오늘 퇴근 늦어?",
+  "야\n너 오늘 뭐해?",
   "뭐해\n갑자기 너 생각나서",
   "야 이거 말하려고 했는데\n이번 주에 그 영화 개봉한대",
   "오늘 좀 조용하네\n바빠?",

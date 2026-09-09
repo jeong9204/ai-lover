@@ -7,6 +7,7 @@ const EVENT_HISTORY_LIMIT = 6;
 const MAX_HISTORY_CONTENT_CHARS = 500;
 const SUMMARY_LOOKBACK_LIMIT = 30;
 const SUMMARY_ITEM_CHARS = 80;
+const WORK_LOOP_LOOKBACK_LIMIT = 16;
 
 function compactContent(content: string): string {
   const normalized = content.trim();
@@ -91,6 +92,28 @@ export function buildConversationSummaryHint(messages: ChatMessage[]): string | 
 요약에 반복해서 등장한 소재를 그대로 되풀이하지 말고, 이미 충분히 다룬 화제라면 짧게 받아준 뒤
 다른 감정/상황/생활 디테일로 자연스럽게 움직여:
 ${lines.map((line) => `- ${line}`).join("\n")}
+`.trim();
+}
+
+export function buildWorkLoopAvoidanceHint(messages: ChatMessage[]): string | null {
+  const recentAssistantMessages = messages
+    .filter((m) => m.role === "assistant")
+    .slice(-WORK_LOOP_LOOKBACK_LIMIT)
+    .map((m) => m.content.replace(/\s+/g, " ").trim());
+  const workMentions = recentAssistantMessages.filter((content) =>
+    /(회사|업무|퇴근|근무|회의|마감|일\s*(끝|해야|하러|하고|마치|정리)|바쁘|이따\s*(연락|톡)|끝나.*연락)/u.test(
+      content
+    )
+  );
+
+  if (workMentions.length < 2) return null;
+
+  return `
+[반복 소재 경고]
+최근 네 답장에 회사/일/퇴근/바쁨/이따 연락 같은 흐름이 여러 번 나왔어.
+이번 턴에는 유저가 직접 일 얘기를 묻지 않는 한, 회사나 업무를 새 근황/핑계/대화 종료로 쓰지 마.
+대신 방금 유저 말에 먼저 반응하고, 필요하면 영화, 약속 준비, 산책, 음악, 날씨, 집에서의 작은 일,
+장난, 보고 싶음 같은 다른 생활감으로 이어가.
 `.trim();
 }
 
