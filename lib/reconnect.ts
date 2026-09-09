@@ -24,6 +24,7 @@ import { milestonesFromTurn } from "./milestones";
 import { buildConversationSummaryHint, buildEventHistory, buildLimitResumePromptHint } from "./llm-context";
 import { buildCommitmentPromptHint } from "./commitments";
 import { buildCurrentTimePromptHint } from "./time-context";
+import { isDifferentKoreanDay } from "./korean-date";
 import {
   buildActivityReturnPromptHint,
   buildActivityReturnTrigger,
@@ -39,8 +40,32 @@ export interface ReconnectResult {
   relationshipStage: string;
 }
 
+const RECONNECT_DEBOUNCE_MS = 2 * 60 * 1000;
+
 interface AttemptReconnectOptions {
   localOnly?: boolean;
+}
+
+function hasRecentProactiveMessage(session: SessionData, now = Date.now()): boolean {
+  const recent = session.messages.slice(-6);
+  return recent.some(
+    (message) =>
+      (message.eventType === "reconnect_first_message" || message.eventType === "call_request") &&
+      now - message.timestamp < RECONNECT_DEBOUNCE_MS
+  );
+}
+
+function recentLimitEndingHint(session: SessionData): string {
+  const lastLimitEnding = [...session.messages]
+    .reverse()
+    .find((message) => message.eventType === "limit_reached");
+  if (!lastLimitEnding || !isDifferentKoreanDay(lastLimitEnding.timestamp, Date.now())) return "";
+
+  return `
+[한도 종료 다음날]
+어제 대화는 유저가 널 무시해서 끊긴 게 아니라, 앱의 하루 대화 한도 때문에 "오늘은 이 통화로 마무리"하고 끝난 상황이야.
+오늘 다시 말을 걸 때는 삐지거나 죄책감을 주지 말고, 어제 통화가 짧게 끊긴 걸 기억하면서 반갑고 부드럽게 이어가.
+`.trim();
 }
 
 /**
@@ -54,6 +79,7 @@ export async function attemptReconnect(
 ): Promise<ReconnectResult | null> {
   const hasHistory = session.messages.length > 0;
   if (!hasHistory) return null;
+  if (hasRecentProactiveMessage(session)) return null;
   if (currentActivity(session.activities)) return null;
 
   const scheduledCall = expiredScheduledCall(session.activities);
@@ -94,7 +120,7 @@ export async function attemptReconnect(
 
   // 동시에 여러 요청이 이 세션을 확인하더라도(개발 모드의 이중 마운트, 탭 폴링과 새로고침이
   // 겹치는 경우 등) 한 번만 처리되도록 선점한다. 실패하면 이미 누군가 처리 중/처리 완료.
-  const claimed = await claimReconnectSlot(session.id);
+  const claimed = await claimReconnectSlot(session.id, RECONNECT_DEBOUNCE_MS);
   if (!claimed) return null;
 
   let reconnectMessage: ChatMessage | null = null;
@@ -107,6 +133,7 @@ export async function attemptReconnect(
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
   const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
+  const limitEndingHint = recentLimitEndingHint(session);
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
@@ -120,6 +147,7 @@ export async function attemptReconnect(
   if (memoryHint) systemPromptParts.push(`[먼저 연락할 때 떠올릴 수 있는 기억]\n${memoryHint}`);
   if (commitmentHint) systemPromptParts.push(commitmentHint);
   if (activityReturnHint) systemPromptParts.push(activityReturnHint);
+  if (limitEndingHint) systemPromptParts.push(limitEndingHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);
