@@ -1,6 +1,6 @@
 import type { ChatMessage } from "./store";
 import type { LLMMessage } from "./llm";
-import { isDifferentKoreanDay } from "./korean-date";
+import { isDifferentKoreanDay, koreanDateLabel } from "./korean-date";
 
 const CHAT_HISTORY_LIMIT = 8;
 const EVENT_HISTORY_LIMIT = 6;
@@ -114,6 +114,26 @@ export function buildWorkLoopAvoidanceHint(messages: ChatMessage[]): string | nu
 이번 턴에는 유저가 직접 일 얘기를 묻지 않는 한, 회사나 업무를 새 근황/핑계/대화 종료로 쓰지 마.
 대신 방금 유저 말에 먼저 반응하고, 필요하면 영화, 약속 준비, 산책, 음악, 날씨, 집에서의 작은 일,
 장난, 보고 싶음 같은 다른 생활감으로 이어가.
+`.trim();
+}
+
+export function buildDayBoundaryPromptHint(messages: ChatMessage[], now = Date.now()): string | null {
+  const lastConversationMessage = [...messages].reverse().find((m) => m.role === "user" || m.role === "assistant");
+  if (!lastConversationMessage || !isDifferentKoreanDay(lastConversationMessage.timestamp, now)) return null;
+
+  const previousLabel = koreanDateLabel(lastConversationMessage.timestamp);
+  const currentLabel = koreanDateLabel(now);
+  const lastContent = compactSummaryItem(lastConversationMessage.content);
+  const hadGoodnightContext = messages
+    .slice(-6)
+    .some((m) => /(잘\s*자|굿나잇|좋은\s*꿈|내일\s*봐|내일\s*카페|자기\s*전|졸려|잠들)/u.test(m.content));
+
+  return `
+[날짜 경계]
+마지막 대화는 ${previousLabel}이고, 지금은 ${currentLabel}이야. 마지막으로 남은 말은 "${lastContent}"였어.
+${hadGoodnightContext ? '어제 밤에 "잘 자", "내일 봐"처럼 마무리한 흐름이 있었어. ' : ""}
+이번 턴에는 같은 밤이 계속되는 것처럼 "안 자고 뭐해", "갑자기 조용해져서 잠들었나"라고 말하지 마.
+오늘 다시 시작된 대화로 받아들이고, 어제 약속/대화가 있으면 "오늘"의 일로 자연스럽게 이어가.
 `.trim();
 }
 

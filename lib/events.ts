@@ -7,7 +7,7 @@
 import type { MoodState } from "./mood";
 import type { PersonaType } from "./persona";
 import type { ChatMessage } from "./store";
-import { koreanHour } from "./korean-date";
+import { isDifferentKoreanDay, koreanDateLabel, koreanHour } from "./korean-date";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -20,11 +20,20 @@ export function shouldSendReconnectMessage(moodState: MoodState): boolean {
  * 재접속 트리거 — 실제 유저 발화가 없는 상태에서 캐릭터가 먼저 말 걸게 만드는 합성 user 턴.
  * 대화 기록에는 저장하지 않고, LLM 호출용 history의 마지막 항목으로만 잠깐 사용한다.
  */
-export function buildReconnectTrigger(elapsedMs: number, moodState: MoodState): string {
+export function buildReconnectTrigger(
+  elapsedMs: number,
+  moodState: MoodState,
+  lastMessageAt: number | null = null,
+  now = Date.now()
+): string {
   const hours = Math.max(1, Math.round(elapsedMs / HOUR));
+  const dayBoundary =
+    lastMessageAt !== null && isDifferentKoreanDay(lastMessageAt, now)
+      ? ` 이전 대화 날짜는 ${koreanDateLabel(lastMessageAt)}이고 지금은 ${koreanDateLabel(now)}라서 날짜가 바뀐 상황이다. 같은 밤이 이어지는 것처럼 말하지 마.`
+      : "";
   return (
     `[시스템: 유저가 ${hours}시간 만에 다시 대화창에 들어왔다. 유저는 아직 아무 말도 하지 않았다. ` +
-    `지금 네 감정 상태(${moodState})에 맞게, 네가 먼저 말을 걸어라.]`
+    `지금 네 감정 상태(${moodState})에 맞게, 네가 먼저 말을 걸어라.${dayBoundary}]`
   );
 }
 

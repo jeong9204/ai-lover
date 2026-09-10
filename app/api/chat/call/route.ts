@@ -26,7 +26,12 @@ import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
-import { buildConversationSummaryHint, buildEventHistory, buildWorkLoopAvoidanceHint } from "@/lib/llm-context";
+import {
+  buildConversationSummaryHint,
+  buildDayBoundaryPromptHint,
+  buildEventHistory,
+  buildWorkLoopAvoidanceHint,
+} from "@/lib/llm-context";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
 import { checkLLMRateLimit } from "@/lib/rate-limit";
@@ -138,6 +143,8 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   if (activityHint) systemPromptParts.push(activityHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
+  if (dayBoundaryHint) systemPromptParts.push(dayBoundaryHint);
   const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
   const systemPrompt = systemPromptParts.join("\n\n");

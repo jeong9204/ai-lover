@@ -48,6 +48,7 @@ import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-
 import {
   buildChatHistory,
   buildConversationSummaryHint,
+  buildDayBoundaryPromptHint,
   buildLimitResumePromptHint,
   buildWorkLoopAvoidanceHint,
 } from "@/lib/llm-context";
@@ -290,6 +291,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
+  if (dayBoundaryHint) systemPromptParts.push(dayBoundaryHint);
   const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);

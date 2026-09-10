@@ -23,6 +23,7 @@ import { buildDailyStatePromptHint } from "./daily-state";
 import { milestonesFromTurn } from "./milestones";
 import {
   buildConversationSummaryHint,
+  buildDayBoundaryPromptHint,
   buildEventHistory,
   buildLimitResumePromptHint,
   buildWorkLoopAvoidanceHint,
@@ -155,13 +156,17 @@ export async function attemptReconnect(
   if (limitEndingHint) systemPromptParts.push(limitEndingHint);
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
+  const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
+  if (dayBoundaryHint) systemPromptParts.push(dayBoundaryHint);
   const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);
   if (limitResumeHint) systemPromptParts.push(limitResumeHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
-  const historyTrigger = returnActivity ? buildActivityReturnTrigger(returnActivity) : buildReconnectTrigger(mood.elapsedMs, mood.state);
+  const historyTrigger = returnActivity
+    ? buildActivityReturnTrigger(returnActivity)
+    : buildReconnectTrigger(mood.elapsedMs, mood.state, session.lastMessageAt);
   const history: LLMMessage[] = buildEventHistory(session.messages, historyTrigger);
 
   try {
