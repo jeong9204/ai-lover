@@ -96,7 +96,7 @@ export function MessageList({
                 <div className="h-px flex-1 bg-gray-400/40" />
               </div>
             ) : m.eventType === "meetup_completed" || m.eventType === "time_skip" ? (
-              <div className="my-3 flex items-center gap-2 text-gray-500">
+              <div className="flex items-center gap-2 py-5 text-gray-500">
                 <div className="h-px flex-1 bg-gray-400/40" />
                 <span className="rounded-full bg-white/50 px-3 py-1 text-xs">{m.content}</span>
                 <div className="h-px flex-1 bg-gray-400/40" />
