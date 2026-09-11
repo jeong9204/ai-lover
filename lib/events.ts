@@ -86,6 +86,10 @@ export function inferMeetupCompletionKind(
     .replace(/\s+/g, " ")
     .trim();
 
+  if (/(산책|공원|동네\s*한\s*바퀴|잠깐\s*(걷|걸|나가|보자|볼래|만나)|바람\s*쐬)/u.test(context)) {
+    return "quick";
+  }
+
   if (/(데이트|카페|영화|맛집|밥|식사|점심|저녁|코스|입을\s*옷|옷\s*(고르|골라)|뭐\s*입고|하루|오래|놀러|놀자)/u.test(context)) {
     return "date";
   }
