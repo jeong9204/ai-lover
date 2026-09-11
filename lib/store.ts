@@ -362,7 +362,7 @@ async function loadMessages(sessionId: string): Promise<ChatMessage[]> {
 
 function looksLikeMeetupReturnMessage(message: ChatMessage): boolean {
   if (message.role !== "assistant") return false;
-  return /(집\s*(잘\s*)?들어갔어|문\s*잠그고|집\s*가는\s*길|다시\s*(가|움직이는)\s*중|다시\s*할\s*일|아까\s*(잠깐\s*)?(본|헤어질|재밌))/u.test(
+  return /(집\s*(잘\s*)?들어갔어|문\s*잠그고|집\s*가는\s*길|집\s*가는\s*중|돌아가는\s*중|다시\s*(가|움직이는)\s*중|다시\s*할\s*일|오늘.*(좋았|아쉽|괜찮)|같이\s*있다가|헤어지니까|아까\s*(잠깐\s*)?(본|헤어질|재밌))/u.test(
     message.content
   );
 }

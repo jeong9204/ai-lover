@@ -52,7 +52,7 @@ export function milestonesFromTurn(input: {
     drafts.push({
       type: "first_meetup",
       title: "처음 만나러 나간 날",
-      description: "카톡으로 약속을 잡고 잠깐 만나고 돌아왔다.",
+      description: "카톡으로 약속을 잡고 만나고 돌아왔다.",
     });
   }
 

@@ -35,6 +35,7 @@ import {
   buildMeetupReturnMessage,
   hasRecentMeetupContext,
   hasPendingMeetupTravelContext,
+  inferMeetupCompletionKind,
   isExplicitMeetupRequest,
   isMeetupArrivalSignal,
   isMeetupAcceptanceReply,
@@ -376,15 +377,16 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     }
 
     if (replyEventType === "meetup_request") {
+      const meetupKind = inferMeetupCompletionKind(session.messages, message, structured.message);
       const meetupCompletedMessage: ChatMessage = {
         role: "system_event",
-        content: buildMeetupCompletedLabel(),
+        content: buildMeetupCompletedLabel(meetupKind),
         timestamp: now + 3,
         eventType: "meetup_completed",
       };
       const meetupReturnMessage: ChatMessage = {
         role: "assistant",
-        content: buildMeetupReturnMessage(session.personaType, now),
+        content: buildMeetupReturnMessage(session.personaType, now, meetupKind),
         timestamp: now + 4,
         eventType: null,
       };

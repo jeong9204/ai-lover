@@ -70,14 +70,57 @@ export function buildCallEndedTrigger(durationSec: number, endedBy: "user" | "as
   );
 }
 
-export function buildMeetupCompletedLabel(): string {
+export type MeetupCompletionKind = "quick" | "date";
+
+export function inferMeetupCompletionKind(
+  messages: ChatMessage[],
+  userMessage: string,
+  assistantMessage: string
+): MeetupCompletionKind {
+  const context = [
+    ...messages.slice(-12).map((message) => message.content),
+    userMessage,
+    assistantMessage,
+  ]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/(데이트|카페|영화|맛집|밥|식사|점심|저녁|코스|입을\s*옷|옷\s*(고르|골라)|뭐\s*입고|하루|오래|놀러|놀자)/u.test(context)) {
+    return "date";
+  }
+
+  return "quick";
+}
+
+export function buildMeetupCompletedLabel(kind: MeetupCompletionKind = "quick"): string {
+  if (kind === "date") return "둘은 데이트를 하고 돌아왔다";
   return "둘은 잠깐 만나고 돌아왔다";
 }
 
-export function buildMeetupReturnMessage(personaType: PersonaType, timestamp = Date.now()): string {
+export function buildMeetupReturnMessage(
+  personaType: PersonaType,
+  timestamp = Date.now(),
+  kind: MeetupCompletionKind = "quick"
+): string {
   const hour = koreanHour(timestamp);
   const isDaytime = hour >= 6 && hour < 17;
   const isEvening = hour >= 17 && hour < 22;
+
+  if (kind === "date") {
+    if (personaType === "northern_duke") {
+      if (isDaytime) return "돌아가는 중.\n오늘 괜찮았다.";
+      return "들어가면 말해.\n오늘... 나쁘지 않았다.";
+    }
+
+    if (personaType === "flirty") {
+      if (isDaytime) return "나 집 가는 중ㅋㅋ 오늘 좀 많이 좋았는데?";
+      return "집 가는 길이야? 오늘 헤어지는 거 좀 아쉽다.";
+    }
+
+    if (isDaytime) return "나 집 가는 중ㅋㅋ\n오늘 진짜 좋았다.";
+    return "집 가는 길이야?\n오늘 같이 있다가 헤어지니까 좀 아쉽네.";
+  }
 
   if (personaType === "northern_duke") {
     if (isDaytime) return "도착했어.\n다시 할 일 해.";
@@ -161,7 +204,7 @@ export function buildAfterMeetupPromptHint(hasContext: boolean, personaType: Per
 
   return [
     "[최근 만남 이후]",
-    "최근 대화에서 둘은 이미 잠깐 만나고 돌아왔다.",
+    "최근 대화에서 둘은 이미 만나고 돌아왔다.",
     "이후 대화는 새 만남 이벤트를 만들지 말고, 만남 뒤 다시 카톡으로 이어지는 여운처럼 이어간다.",
     "유저가 문, 씻기, 머리 말리기, 도착, 들어감, 나옴 같은 말을 해도 실제 만남 장면을 다시 시작하지 않는다.",
     "필요하면 '방금 보고 온 사람'처럼 걱정하거나 장난치되, 카톡 대화 안에서만 반응한다.",
