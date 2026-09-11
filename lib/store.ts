@@ -3,7 +3,7 @@
 
 import { supabase } from "./supabase";
 import { createCharacterDailyState } from "./daily-state";
-import { isExplicitMeetupRequest } from "./events";
+import { hasPendingMeetupTravelContext, isExplicitMeetupRequest, isMeetupArrivalSignal } from "./events";
 import { koreanDateKey } from "./korean-date";
 import { MilestoneDraft } from "./milestones";
 import {
@@ -388,7 +388,8 @@ function hideInvalidMeetupSequences(messages: ChatMessage[]): ChatMessage[] {
 
     if (message.eventType === "meetup_request") {
       const previousUserMessage = [...sanitized].reverse().find((m) => m.role === "user");
-      if (!previousUserMessage || !isExplicitMeetupRequest(previousUserMessage.content)) {
+      const hasTravelContext = hasPendingMeetupTravelContext(sanitized) || isMeetupArrivalSignal(message.content);
+      if (!previousUserMessage || (!isExplicitMeetupRequest(previousUserMessage.content) && !hasTravelContext)) {
         sanitized.push({ ...message, eventType: null });
         skipInvalidMeetupCompleted = true;
         continue;
