@@ -35,6 +35,10 @@ import {
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
 import { checkLLMRateLimit } from "@/lib/rate-limit";
+import {
+  applyConversationTopicUpdate,
+  buildConversationTopicPromptHint,
+} from "@/lib/conversation-topics";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
@@ -141,6 +145,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
   const activityHint = buildActivityPromptHint(currentActivity(session.activities));
   if (activityHint) systemPromptParts.push(activityHint);
+  systemPromptParts.push(buildConversationTopicPromptHint(session.topicState));
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
@@ -216,6 +221,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
+  const topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,
@@ -223,6 +229,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     emotionIntensity: structured.intensity,
     lastConversationMood: conversationMoodFromEmotion(structured.emotion),
     lastActiveAt: Date.now(),
+    topicState,
   });
 
   return NextResponse.json({
@@ -239,6 +246,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     dailyState,
     commitments: session.commitments,
     activities: responseActivities,
+    topicState,
     dailyMessageCount: await countMessagesToday(session.id),
     dailyMessageLimit: await getDailyMessageLimit(session.id),
   });

@@ -14,6 +14,10 @@ import {
   pickInitialMessage,
 } from "./persona";
 import { LLMTokenUsage } from "./llm-cost";
+import {
+  ConversationTopicState,
+  normalizeConversationTopicState,
+} from "./conversation-topics";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
@@ -132,6 +136,7 @@ export interface SessionData {
   characterName: string;
   personaType: PersonaType;
   confessedAt: number | null;
+  topicState: ConversationTopicState;
 }
 
 interface SessionRow {
@@ -146,6 +151,7 @@ interface SessionRow {
   character_name?: string | null;
   persona_type?: PersonaType | null;
   confessed_at: string | null;
+  topic_state?: unknown;
 }
 
 interface MessageRow {
@@ -158,6 +164,9 @@ interface MessageRow {
 }
 
 const SESSION_COLUMNS =
+  "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, character_name, persona_type, confessed_at, topic_state";
+
+const LEGACY_SESSION_COLUMNS =
   "id, relationship_stage, relationship_score, emotion, emotion_intensity, last_conversation_mood, last_active_at, user_name, character_name, persona_type, confessed_at";
 
 const FALLBACK_SESSION_COLUMNS =
@@ -192,6 +201,7 @@ function rowToSessionData(
     characterName: row.character_name ?? PERSONA_NAME,
     personaType: row.persona_type ?? personaTypeForName(row.character_name ?? PERSONA_NAME),
     confessedAt: row.confessed_at ? new Date(row.confessed_at).getTime() : null,
+    topicState: normalizeConversationTopicState(row.topic_state),
   };
 }
 
@@ -202,6 +212,13 @@ async function loadSessionRow(sessionId: string): Promise<{ row: SessionRow | nu
     .eq("id", sessionId)
     .maybeSingle();
   if (!error) return { row: data as SessionRow | null, error: null };
+
+  const legacy = await supabase
+    .from("sessions")
+    .select(LEGACY_SESSION_COLUMNS)
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!legacy.error) return { row: legacy.data as SessionRow | null, error: null };
 
   const fallback = await supabase
     .from("sessions")
@@ -220,6 +237,13 @@ async function createSessionRow(): Promise<{ row: SessionRow | null; error: unkn
     .select(SESSION_COLUMNS)
     .single();
   if (!error) return { row: data as SessionRow, error: null };
+
+  const legacy = await supabase
+    .from("sessions")
+    .insert({ id: sessionSeed, character_name: profile.name, persona_type: profile.personaType })
+    .select(LEGACY_SESSION_COLUMNS)
+    .single();
+  if (!legacy.error) return { row: legacy.data as SessionRow, error: null };
 
   const fallback = await supabase
     .from("sessions")
@@ -799,6 +823,7 @@ export interface SessionPatch {
   lastActiveAt?: number;
   userName?: string | null;
   confessedAt?: number;
+  topicState?: ConversationTopicState;
 }
 
 export async function updateSession(sessionId: string, patch: SessionPatch): Promise<void> {
@@ -811,7 +836,13 @@ export async function updateSession(sessionId: string, patch: SessionPatch): Pro
   if (patch.confessedAt !== undefined) update.confessed_at = new Date(patch.confessedAt).toISOString();
   if (patch.lastActiveAt !== undefined) update.last_active_at = new Date(patch.lastActiveAt).toISOString();
   if (patch.userName !== undefined) update.user_name = patch.userName;
+  if (patch.topicState !== undefined) update.topic_state = normalizeConversationTopicState(patch.topicState);
 
+  const { error } = await supabase.from("sessions").update(update).eq("id", sessionId);
+  if (!error || patch.topicState === undefined) return;
+
+  // migration 적용 전에도 관계/감정 업데이트가 함께 막히지 않도록 기존 컬럼만 한 번 재시도한다.
+  delete update.topic_state;
   await supabase.from("sessions").update(update).eq("id", sessionId);
 }
 

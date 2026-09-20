@@ -39,11 +39,17 @@ import {
   expiredScheduledCall,
   expiredReturnActivity,
 } from "./activities";
+import {
+  applyConversationTopicUpdate,
+  buildConversationTopicPromptHint,
+  type ConversationTopicState,
+} from "./conversation-topics";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
   mood: MoodState;
   relationshipStage: string;
+  topicState: ConversationTopicState;
 }
 
 const RECONNECT_DEBOUNCE_MS = 2 * 60 * 1000;
@@ -109,7 +115,12 @@ export async function attemptReconnect(
       lastConversationMood: "warm",
       lastActiveAt: now,
     });
-    return { reconnectMessage, mood: "calm", relationshipStage: session.relationshipStage };
+    return {
+      reconnectMessage,
+      mood: "calm",
+      relationshipStage: session.relationshipStage,
+      topicState: session.topicState,
+    };
   }
   if (options.localOnly) return null;
 
@@ -131,6 +142,7 @@ export async function attemptReconnect(
 
   let reconnectMessage: ChatMessage | null = null;
   let relationshipStage = session.relationshipStage;
+  let topicState = session.topicState;
 
   const emotionHint = buildEmotionPromptHint(session.emotion as Emotion, session.emotionIntensity);
   const dailyState = await getOrCreateCharacterDailyState(session.id);
@@ -154,6 +166,7 @@ export async function attemptReconnect(
   if (commitmentHint) systemPromptParts.push(commitmentHint);
   if (activityReturnHint) systemPromptParts.push(activityReturnHint);
   if (limitEndingHint) systemPromptParts.push(limitEndingHint);
+  systemPromptParts.push(buildConversationTopicPromptHint(session.topicState));
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
@@ -191,6 +204,7 @@ export async function attemptReconnect(
 
     const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
     relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
+    topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
     await updateSession(session.id, {
       relationshipScore,
       relationshipStage,
@@ -198,11 +212,12 @@ export async function attemptReconnect(
       emotionIntensity: structured.intensity,
       lastConversationMood: conversationMoodFromEmotion(structured.emotion),
       lastActiveAt: now,
+      topicState,
     });
   } catch {
     // 먼저 말 걸기 생성 실패는 조용히 무시 — 호출부(세션 로드/cron) 흐름을 막지 않는다.
   }
 
   if (!reconnectMessage) return null;
-  return { reconnectMessage, mood: mood.state, relationshipStage };
+  return { reconnectMessage, mood: mood.state, relationshipStage, topicState };
 }

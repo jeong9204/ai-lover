@@ -13,6 +13,10 @@ import { MessageList } from "@/components/MessageList";
 import { NamePrompt } from "@/components/NamePrompt";
 import { Msg } from "@/components/chat-types";
 import type { CharacterActivity, CharacterDailyState, Commitment } from "@/lib/store";
+import {
+  EMPTY_CONVERSATION_TOPIC_STATE,
+  type ConversationTopicState,
+} from "@/lib/conversation-topics";
 
 const SESSION_STORAGE_KEY = "ai-lover-session-id";
 const NAME_SKIPPED_KEY = "ai-lover-name-skipped";
@@ -90,6 +94,23 @@ function ChatBootSkeleton() {
   );
 }
 
+function DevTopicState({ state }: { state: ConversationTopicState }) {
+  const row = (label: string, topics: string[]) => (
+    <p className="truncate">
+      <span className="font-semibold text-gray-600">{label}</span>{" "}
+      <span className="text-gray-800">{topics.length > 0 ? topics.join(" · ") : "없음"}</span>
+    </p>
+  );
+
+  return (
+    <section className="shrink-0 space-y-0.5 border-b border-black/10 bg-white/75 px-3 py-2 text-[11px]">
+      {row("Recent Topics", state.recentTopics)}
+      {row("Exhausted Topics", state.exhaustedTopics)}
+      {row("Unresolved Topics", state.unresolvedTopics)}
+    </section>
+  );
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -119,6 +140,7 @@ export default function Home() {
   const [dailyState, setDailyState] = useState<CharacterDailyState | null>(null);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [activities, setActivities] = useState<CharacterActivity[]>([]);
+  const [topicState, setTopicState] = useState<ConversationTopicState>(EMPTY_CONVERSATION_TOPIC_STATE);
   const [profileOpen, setProfileOpen] = useState(false);
   const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [canRequestFeedbackBonus, setCanRequestFeedbackBonus] = useState(false);
@@ -269,6 +291,7 @@ export default function Home() {
       setDailyState(data.dailyState ?? null);
       setCommitments(data.commitments ?? []);
       setActivities(data.activities ?? []);
+      setTopicState(data.topicState ?? EMPTY_CONVERSATION_TOPIC_STATE);
       const nextDevMode = Boolean(data.devMode);
       setDevMode(nextDevMode);
       syncLimitNoticeFromUsage(data);
@@ -443,6 +466,7 @@ export default function Home() {
       setCharacterName(PERSONA_NAME);
       setPersonaType("default");
       setDailyState(null);
+      setTopicState(EMPTY_CONVERSATION_TOPIC_STATE);
       setProfileOpen(false);
       setNameInput("");
       setMessages([]);
@@ -536,6 +560,7 @@ export default function Home() {
           setDailyState(data.dailyState ?? dailyState);
           setCommitments(data.commitments ?? commitments);
           setActivities(data.activities ?? activities);
+          setTopicState(data.topicState ?? topicState);
         }
         if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
         syncLimitNoticeFromUsage(data);
@@ -664,6 +689,7 @@ export default function Home() {
       setDailyState(data.dailyState ?? dailyState);
       setCommitments(data.commitments ?? commitments);
       setActivities(data.activities ?? activities);
+      setTopicState(data.topicState ?? topicState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
     } catch (e) {
@@ -775,6 +801,7 @@ export default function Home() {
       setDailyState(data.dailyState ?? dailyState);
       setCommitments(data.commitments ?? commitments);
       setActivities(data.activities ?? activities);
+      setTopicState(data.topicState ?? topicState);
       if (data.devMode !== undefined) setDevMode(Boolean(data.devMode));
       syncLimitNoticeFromUsage(data);
       if (data.error) setError(data.error);
@@ -811,6 +838,8 @@ export default function Home() {
         onOpenAdminCosts={openAdminCosts}
         onOpenProfile={() => setProfileOpen(true)}
       />
+
+      {devMode && <DevTopicState state={topicState} />}
 
       {pushStatus && (
         <p className="shrink-0 truncate bg-white/70 px-3 py-1 text-center text-[11px] text-gray-600">

@@ -66,6 +66,10 @@ import {
   shouldFastForwardBusyWork,
 } from "@/lib/activities";
 import { checkLLMRateLimit } from "@/lib/rate-limit";
+import {
+  applyConversationTopicUpdate,
+  buildConversationTopicPromptHint,
+} from "@/lib/conversation-topics";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -126,6 +130,7 @@ export async function GET(req: NextRequest) {
       dailyState,
       commitments: session.commitments,
       activities: session.activities,
+      topicState: reconnect?.topicState ?? session.topicState,
       devMode,
       dailyMessageCount,
       dailyMessageLimit,
@@ -241,6 +246,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       dailyState,
       commitments: session.commitments,
       activities: session.activities,
+      topicState: session.topicState,
       photoMessage: null,
       extraMessages: [],
       localReply: true,
@@ -290,6 +296,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (activityHint) systemPromptParts.push(activityHint);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
   if (dailyStateHint) systemPromptParts.push(dailyStateHint);
+  systemPromptParts.push(buildConversationTopicPromptHint(session.topicState));
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
   const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
@@ -422,6 +429,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage =
     justConfessed || session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
+  const topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,
@@ -429,6 +437,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     emotionIntensity: structured.intensity,
     lastConversationMood: conversationMoodFromEmotion(structured.emotion),
     lastActiveAt: now,
+    topicState,
     ...(justConfessed ? { confessedAt: now } : {}),
   });
 
@@ -507,6 +516,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     dailyState,
     commitments: responseCommitments,
     activities: responseActivities,
+    topicState,
     photoMessage,
     extraMessages,
     dailyMessageCount: await countMessagesToday(session.id),

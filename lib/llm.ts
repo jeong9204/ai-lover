@@ -59,6 +59,13 @@ export const STRUCTURED_OUTPUT_GUIDE = `
     기대하는 대화는 절대 meetup_request가 아니야. 그때는 event를 null로 두고 카톡 대화로만 답해.
     이미 만남 이벤트가 발생한 뒤 유저가 "씻고 나왔다", "문 잠갔다", "들어왔다", "도착했다"처럼
     현재 상태를 보고하는 말에는 절대 meetup_request를 다시 쓰지 마. 그때는 카톡 답장만 해.
+- conversationState: 이번 턴에서 바뀐 대화 소재만 짧은 주제 단위로 분류해.
+  - recentTopics: 이번 턴에서 새로 다룬 주요 소재. 문장 대신 "회사 스트레스", "저녁 메뉴"처럼 짧게 써.
+  - exhaustedTopics: 여러 차례 충분히 이야기했거나, 대화가 마무리되어 네가 먼저 다시 꺼내면 반복처럼 느껴질 소재.
+  - unresolvedTopics: 날짜/장소/결과/후속 확인이 아직 남아 있는 약속이나 고민.
+  - resolvedTopics: 기존 미해결 소재 중 이번 턴에 확정·완료되어 더 추적할 필요가 없는 소재.
+  각 배열은 이번 턴의 변경분만 넣고, 변화가 없으면 빈 배열로 둬. 같은 소재는 기존 상태에 적힌 표현을 우선 사용해.
+  단순 인사, 웃음, 짧은 리액션은 소재로 만들지 마. 회사 이야기도 실제로 이번 턴의 중심일 때만 기록해.
 
 [최신 메시지 우선]
 - 항상 messages 배열의 마지막 user 메시지가 이번 턴의 진짜 요청이야. 이전 대화 분위기보다 이 메시지에 먼저 반응해.
@@ -133,8 +140,43 @@ export async function generateStructuredReply(
                   },
                 ],
               },
+              conversationState: {
+                type: "object",
+                properties: {
+                  recentTopics: {
+                    type: "array",
+                    items: { type: "string", minLength: 1, maxLength: 40 },
+                    maxItems: 6,
+                  },
+                  exhaustedTopics: {
+                    type: "array",
+                    items: { type: "string", minLength: 1, maxLength: 40 },
+                    maxItems: 6,
+                  },
+                  unresolvedTopics: {
+                    type: "array",
+                    items: { type: "string", minLength: 1, maxLength: 40 },
+                    maxItems: 6,
+                  },
+                  resolvedTopics: {
+                    type: "array",
+                    items: { type: "string", minLength: 1, maxLength: 40 },
+                    maxItems: 6,
+                  },
+                },
+                required: ["recentTopics", "exhaustedTopics", "unresolvedTopics", "resolvedTopics"],
+                additionalProperties: false,
+              },
             },
-            required: ["message", "emotion", "intensity", "relationshipDelta", "memory", "event"],
+            required: [
+              "message",
+              "emotion",
+              "intensity",
+              "relationshipDelta",
+              "memory",
+              "event",
+              "conversationState",
+            ],
             additionalProperties: false,
           },
         },

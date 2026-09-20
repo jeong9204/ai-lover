@@ -20,6 +20,16 @@ export const EventSchema = z
   .nullable();
 export type ReplyEvent = z.infer<typeof EventSchema>;
 
+const TopicListSchema = z.array(z.string().min(1).max(40)).max(6);
+
+export const ConversationTopicUpdateSchema = z.object({
+  recentTopics: TopicListSchema,
+  exhaustedTopics: TopicListSchema,
+  unresolvedTopics: TopicListSchema,
+  resolvedTopics: TopicListSchema,
+});
+export type ConversationTopicUpdate = z.infer<typeof ConversationTopicUpdateSchema>;
+
 export const StructuredReplySchema = z.object({
   message: z.string(), // event가 deleted_message면 ""도 허용
   emotion: EmotionEnum,
@@ -27,6 +37,7 @@ export const StructuredReplySchema = z.object({
   relationshipDelta: z.number().int().min(-3).max(3),
   memory: z.string().min(1).nullable(),
   event: EventSchema,
+  conversationState: ConversationTopicUpdateSchema,
 });
 export type StructuredReply = z.infer<typeof StructuredReplySchema>;
 
