@@ -38,7 +38,7 @@ import {
   buildLimitResumePromptHint,
   buildWorkLoopAvoidanceHint,
 } from "./llm-context";
-import { buildCommitmentPromptHint } from "./commitments";
+import { buildCommitmentPromptHint, hasConfirmedMeetupContext } from "./commitments";
 import { buildCurrentTimePromptHint } from "./time-context";
 import { isDifferentKoreanDay } from "./korean-date";
 import {
@@ -52,6 +52,7 @@ import {
 import {
   applyConversationTopicUpdate,
   buildConversationTopicPromptHint,
+  guardUnconfirmedMeetupTopics,
   type ConversationTopicState,
 } from "./conversation-topics";
 
@@ -224,7 +225,18 @@ export async function attemptReconnect(
 
     const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
     relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
-    topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
+    topicState = applyConversationTopicUpdate(
+      session.topicState,
+      guardUnconfirmedMeetupTopics({
+        currentState: session.topicState,
+        update: structured.conversationState,
+        hasConfirmedMeetup: hasConfirmedMeetupContext({
+          userMessage: "",
+          recentMessages: session.messages,
+          commitments: session.commitments,
+        }),
+      })
+    );
     await updateSession(session.id, {
       relationshipScore,
       relationshipStage,

@@ -3,9 +3,15 @@ import {
   applyConversationTopicUpdate,
   completeMeetupTopicState,
   EMPTY_CONVERSATION_TOPIC_STATE,
+  guardUnconfirmedMeetupTopics,
   normalizeConversationTopicState,
 } from "../lib/conversation-topics.ts";
-import { commitmentIdsForCompletedMeetup } from "../lib/commitments.ts";
+import {
+  commitmentIdsForCompletedMeetup,
+  extractCommitmentsFromTurn,
+  isHypotheticalMeetupProposal,
+  isUserConfirmedMeetup,
+} from "../lib/commitments.ts";
 
 function update(state, patch) {
   return applyConversationTopicUpdate(state, {
@@ -105,5 +111,134 @@ const futureTopicState = update(completedMeetupTopics, {
   unresolvedTopics: ["이번 주말 새 만남 약속"],
 });
 assert.deepEqual(futureTopicState.unresolvedTopics, ["이번 주말 새 만남 약속"]);
+
+const assistantProposal = {
+  role: "assistant",
+  content: "내일 만나면 좋겠다",
+  timestamp: Date.now() - 1000,
+};
+assert.equal(
+  isUserConfirmedMeetup({ userMessage: "ㅋㅋㅋ", recentMessages: [assistantProposal] }),
+  false
+);
+assert.deepEqual(
+  extractCommitmentsFromTurn({
+    userMessage: "ㅋㅋㅋ",
+    assistantMessage: "그러게ㅋㅋ",
+    recentMessages: [assistantProposal],
+  }),
+  []
+);
+const blockedProposalTopics = guardUnconfirmedMeetupTopics({
+  currentState: EMPTY_CONVERSATION_TOPIC_STATE,
+  update: {
+    recentTopics: [],
+    exhaustedTopics: [],
+    unresolvedTopics: ["내일 만남 계획"],
+    resolvedTopics: [],
+  },
+  hasConfirmedMeetup: false,
+});
+assert.deepEqual(blockedProposalTopics.unresolvedTopics, []);
+const staleProposalCleanup = guardUnconfirmedMeetupTopics({
+  currentState: {
+    recentTopics: ["드라마 추천"],
+    exhaustedTopics: [],
+    unresolvedTopics: ["내일 만남 계획"],
+  },
+  update: {
+    recentTopics: [],
+    exhaustedTopics: [],
+    unresolvedTopics: [],
+    resolvedTopics: [],
+  },
+  hasConfirmedMeetup: false,
+});
+assert.deepEqual(
+  applyConversationTopicUpdate(
+    {
+      recentTopics: ["드라마 추천"],
+      exhaustedTopics: [],
+      unresolvedTopics: ["내일 만남 계획"],
+    },
+    staleProposalCleanup
+  ),
+  {
+    recentTopics: ["드라마 추천"],
+    exhaustedTopics: [],
+    unresolvedTopics: [],
+  }
+);
+
+const assistantQuestion = {
+  role: "assistant",
+  content: "내일 볼까?",
+  timestamp: Date.now() - 1000,
+};
+const acceptedProposal = extractCommitmentsFromTurn({
+  userMessage: "좋아 만나자",
+  assistantMessage: "좋지ㅋㅋ 내일 보자",
+  recentMessages: [assistantQuestion],
+});
+assert.equal(acceptedProposal.length, 1);
+assert.equal(acceptedProposal[0].title, "만날 약속");
+assert.equal(acceptedProposal[0].dueLabel, "내일");
+
+assert.deepEqual(
+  extractCommitmentsFromTurn({
+    userMessage: "로맨스 보면서 떡볶이나 먹고싶다~",
+    assistantMessage: "로맨스 틀어놓고 떡볶이 먹으면 딱이지. 내일 만나면 그것도 코스에 넣을까?",
+    recentMessages: [],
+  }),
+  []
+);
+
+const directUserPlan = extractCommitmentsFromTurn({
+  userMessage: "내일 만나서 떡볶이 먹자",
+  assistantMessage: "좋지",
+  recentMessages: [],
+});
+assert.equal(directUserPlan.length, 1);
+assert.equal(directUserPlan[0].title, "만날 약속");
+assert.equal(directUserPlan[0].dueLabel, "내일");
+
+assert.equal(isHypotheticalMeetupProposal("내일 만나면 떡볶이 먹자"), true);
+assert.deepEqual(
+  extractCommitmentsFromTurn({
+    userMessage: "떡볶이 좋지",
+    assistantMessage: "내일 만나면 떡볶이 먹자",
+    recentMessages: [],
+  }),
+  []
+);
+
+const pendingMeetup = {
+  id: "confirmed-tomorrow",
+  title: "만날 약속",
+  detail: "내일 만나기로 함",
+  owner: "shared",
+  dueLabel: "내일",
+  status: "pending",
+  sourceMessage: "내일 만나자",
+  createdAt: Date.now() - 1000,
+};
+const existingMeetupFollowup = extractCommitmentsFromTurn({
+  userMessage: "떡볶이 먹고 싶다",
+  assistantMessage: "그럼 내일 만나서 먹자",
+  recentMessages: [],
+  existingCommitments: [pendingMeetup],
+});
+assert.equal(existingMeetupFollowup.length, 0);
+const allowedExistingMeetupTopic = guardUnconfirmedMeetupTopics({
+  currentState: EMPTY_CONVERSATION_TOPIC_STATE,
+  update: {
+    recentTopics: [],
+    exhaustedTopics: [],
+    unresolvedTopics: ["내일 만남 계획"],
+    resolvedTopics: [],
+  },
+  hasConfirmedMeetup: true,
+});
+assert.deepEqual(allowedExistingMeetupTopic.unresolvedTopics, ["내일 만남 계획"]);
 
 console.log("conversation topic tests: ok");

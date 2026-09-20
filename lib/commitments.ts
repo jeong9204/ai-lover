@@ -95,6 +95,46 @@ function isCommitmentLike(text: string): boolean {
   return hasPlanSubject && hasCommitmentVerb;
 }
 
+const HYPOTHETICAL_MEETUP_PATTERN =
+  /(만나면|보면|가면|먹으면|하면|한다면|할까\??|했으면\s*좋겠|하면\s*좋겠|만나고\s*싶|보고\s*싶)/u;
+const DIRECT_MEETUP_CONFIRMATION_PATTERN =
+  /(만나자|만날래|데이트\s*하자|데이트\s*할래|만나기로\s*(?:했|한)|(?:오늘|내일|모레|이번\s*주|다음\s*주|주말|[월화수목금토일]요일|그럼|그러면).{0,20}(?:보자|볼래)|(?:오늘|내일|모레|이번\s*주|다음\s*주|주말|[월화수목금토일]요일).{0,20}만나서)/u;
+const MEETUP_PROPOSAL_PATTERN =
+  /(만나|볼까|보자|볼래|데이트|같이.{0,16}(?:가자|먹자|보자)|만나면\s*좋겠|보고\s*싶)/u;
+const MEETUP_ACCEPTANCE_PATTERN =
+  /^(?:응+|어+|그래|좋아|좋지|오케이|오키|콜|그러자|그렇게\s*하자|약속)(?:[!~ㅋㅎ\s.]|$)/u;
+const MEETUP_REJECTION_PATTERN =
+  /(싫|안\s*돼|못\s*(봐|만나|가)|어려|힘들|다음에|나중에|농담|장난)/u;
+
+export function isHypotheticalMeetupProposal(message: string): boolean {
+  const text = normalize(message);
+  return MEETUP_PROPOSAL_PATTERN.test(text) && HYPOTHETICAL_MEETUP_PATTERN.test(text);
+}
+
+function isDirectUserMeetupConfirmation(message: string): boolean {
+  const text = normalize(message);
+  if (!text || isHypotheticalMeetupProposal(text)) return false;
+  return DIRECT_MEETUP_CONFIRMATION_PATTERN.test(text);
+}
+
+function latestAssistantMessage(messages: ChatMessage[]): string | null {
+  return [...messages].reverse().find((message) => message.role === "assistant")?.content ?? null;
+}
+
+export function isUserConfirmedMeetup(input: {
+  userMessage: string;
+  recentMessages?: ChatMessage[];
+}): boolean {
+  const userMessage = normalize(input.userMessage);
+  if (isDirectUserMeetupConfirmation(userMessage)) return true;
+  if (!MEETUP_ACCEPTANCE_PATTERN.test(userMessage) || MEETUP_REJECTION_PATTERN.test(userMessage)) {
+    return false;
+  }
+
+  const priorAssistant = latestAssistantMessage(input.recentMessages ?? []);
+  return Boolean(priorAssistant && MEETUP_PROPOSAL_PATTERN.test(normalize(priorAssistant)));
+}
+
 const MEETUP_COMMITMENT_TITLES = new Set([
   "만날 약속",
   "갈 곳 찾아두기",
@@ -137,6 +177,32 @@ export function isMeetupPreparationCommitment(
   return /(만나|보자|볼래|데이트|카페|영화|맛집|식당|장소|예매|예약)/u.test(context);
 }
 
+function requiresConfirmedMeetup(commitment: CommitmentDraft): boolean {
+  if (commitment.title === "만날 약속") return true;
+  const context = normalize(`${commitment.detail ?? ""} ${commitment.sourceMessage ?? ""}`);
+  return /(만나|만날|만남|데이트)/u.test(context);
+}
+
+export function hasPendingMeetupCommitment(commitments: Commitment[]): boolean {
+  return commitments.some(
+    (commitment) => commitment.status === "pending" && isMeetupPreparationCommitment(commitment)
+  );
+}
+
+export function hasConfirmedMeetupContext(input: {
+  userMessage: string;
+  recentMessages?: ChatMessage[];
+  commitments?: Commitment[];
+}): boolean {
+  return (
+    hasPendingMeetupCommitment(input.commitments ?? []) ||
+    isUserConfirmedMeetup({
+      userMessage: input.userMessage,
+      recentMessages: input.recentMessages,
+    })
+  );
+}
+
 export function commitmentIdsForCompletedMeetup(
   commitments: Commitment[],
   recentMessages: ChatMessage[],
@@ -172,8 +238,38 @@ export function commitmentIdsForCompletedMeetup(
 export function extractCommitmentsFromTurn(input: {
   userMessage: string;
   assistantMessage?: string | null;
+  recentMessages?: ChatMessage[];
+  existingCommitments?: Commitment[];
 }): CommitmentDraft[] {
   const drafts: CommitmentDraft[] = [];
+  const priorAssistant = latestAssistantMessage(input.recentMessages ?? []);
+  const userConfirmedMeetup = isUserConfirmedMeetup({
+    userMessage: input.userMessage,
+    recentMessages: input.recentMessages,
+  });
+  const hasConfirmedMeetup = hasConfirmedMeetupContext({
+    userMessage: input.userMessage,
+    recentMessages: input.recentMessages,
+    commitments: input.existingCommitments,
+  });
+
+  if (userConfirmedMeetup) {
+    const directConfirmation = isDirectUserMeetupConfirmation(input.userMessage);
+    const currentUserText = normalize(input.userMessage);
+    const shouldIncludeProposal =
+      Boolean(priorAssistant && MEETUP_PROPOSAL_PATTERN.test(normalize(priorAssistant))) &&
+      !detectDueLabel(currentUserText);
+    const source = directConfirmation && !shouldIncludeProposal
+      ? currentUserText
+      : normalize(`${priorAssistant ?? ""} / 사용자 확인: ${currentUserText}`);
+    drafts.push({
+      title: "만날 약속",
+      detail: compact(source),
+      owner: "shared",
+      dueLabel: detectDueLabel(source),
+      sourceMessage: compact(source, 160),
+    });
+  }
   const items: Array<{ role: ChatMessage["role"]; text: string }> = [
     { role: "user", text: input.userMessage },
     ...(input.assistantMessage ? [{ role: "assistant" as const, text: input.assistantMessage }] : []),
@@ -186,13 +282,32 @@ export function extractCommitmentsFromTurn(input: {
     const title = titleFor(text);
     if (!title) continue;
 
-    drafts.push({
+    const draft: CommitmentDraft = {
       title,
       detail: compact(text),
       owner: detectOwner(item.role, text),
       dueLabel: detectDueLabel(text),
       sourceMessage: compact(text, 160),
-    });
+    };
+    if (requiresConfirmedMeetup(draft) && !hasConfirmedMeetup) continue;
+    if (
+      (input.existingCommitments ?? []).some(
+        (existing) =>
+          existing.status === "pending" &&
+          existing.title === draft.title &&
+          existing.dueLabel === draft.dueLabel
+      )
+    ) {
+      continue;
+    }
+    if (
+      drafts.some(
+        (existing) => existing.title === draft.title
+      )
+    ) {
+      continue;
+    }
+    drafts.push(draft);
   }
 
   return drafts;

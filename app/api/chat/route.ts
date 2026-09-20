@@ -67,6 +67,7 @@ import {
   buildCommitmentPromptHint,
   commitmentIdsForCompletedMeetup,
   extractCommitmentsFromTurn,
+  hasConfirmedMeetupContext,
   isMeetupPreparationCommitment,
 } from "@/lib/commitments";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
@@ -83,6 +84,7 @@ import {
   applyConversationTopicUpdate,
   buildConversationTopicPromptHint,
   completeMeetupTopicState,
+  guardUnconfirmedMeetupTopics,
 } from "@/lib/conversation-topics";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -449,7 +451,16 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const relationshipStage =
     justConfessed || session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
   const completedMeetupAt = replyEventType === "meetup_request" ? now + 3 : null;
-  const updatedTopicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
+  const guardedConversationState = guardUnconfirmedMeetupTopics({
+    currentState: session.topicState,
+    update: structured.conversationState,
+    hasConfirmedMeetup: hasConfirmedMeetupContext({
+      userMessage: message,
+      recentMessages: session.messages,
+      commitments: session.commitments,
+    }),
+  });
+  const updatedTopicState = applyConversationTopicUpdate(session.topicState, guardedConversationState);
   const topicState = completedMeetupAt
     ? completeMeetupTopicState(updatedTopicState)
     : updatedTopicState;
@@ -500,6 +511,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const commitments = extractCommitmentsFromTurn({
     userMessage: message,
     assistantMessage: structured.message,
+    recentMessages: session.messages,
+    existingCommitments: session.commitments,
   }).filter((commitment) => !(completedMeetupAt && isMeetupPreparationCommitment(commitment)));
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
   const activity =

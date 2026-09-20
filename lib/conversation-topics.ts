@@ -8,13 +8,36 @@ export interface ConversationTopicUpdate extends ConversationTopicState {
   resolvedTopics: string[];
 }
 
+interface MeetupTopicGuardInput {
+  currentState: ConversationTopicState;
+  update: ConversationTopicUpdate;
+  hasConfirmedMeetup: boolean;
+}
+
 const MAX_TOPICS_PER_GROUP = 6;
 const MAX_TOPIC_LENGTH = 40;
 const TOPIC_META_SUFFIX_PATTERN = /\s*(상세|마무리|언급|대화|이야기|질문|답변)$/u;
 const DISPOSABLE_CHITCHAT_PATTERN =
   /^(오랜만(?:이야)?(?:\s*인사)?|인사|안부|근황\s*질문|말\s*더듬(?:기)?(?:\s*놀림)?|웃음|농담|장난|짧은\s*반응|리액션|뭐\s*해(?:\s*질문)?|잘\s*잤어(?:\s*질문)?|졸려|배고파)$/u;
 const MEETUP_PREPARATION_TOPIC_PATTERN =
-  /((오늘|내일|모레|주말|이번\s*주|다음\s*주).*(만나|만날|보기|볼\s*약속|데이트)|(영화|카페|식사|저녁|주말).*약속|데이트\s*(약속|준비|장소|시간)|갈\s*곳|장소\s*(정|고르)|몇\s*시|만날\s*시간|지각|늦으면|만나기\s*전|입을\s*옷|뭐\s*입고)/u;
+  /((오늘|내일|모레|주말|이번\s*주|다음\s*주).*(만나|만날|만남|보기|볼\s*약속|데이트)|(영화|카페|식사|저녁|주말).*약속|데이트\s*(약속|준비|장소|시간)|갈\s*곳|장소\s*(정|고르)|몇\s*시|만날\s*시간|지각|늦으면|만나기\s*전|입을\s*옷|뭐\s*입고)/u;
+
+export function isMeetupPlanningTopic(topic: string): boolean {
+  return MEETUP_PREPARATION_TOPIC_PATTERN.test(topic.normalize("NFKC"));
+}
+
+export function guardUnconfirmedMeetupTopics(input: MeetupTopicGuardInput): ConversationTopicUpdate {
+  if (input.hasConfirmedMeetup) return input.update;
+
+  const staleTopics = normalizeConversationTopicState(input.currentState).unresolvedTopics.filter(
+    isMeetupPlanningTopic
+  );
+  return {
+    ...input.update,
+    unresolvedTopics: input.update.unresolvedTopics.filter((topic) => !isMeetupPlanningTopic(topic)),
+    resolvedTopics: [...input.update.resolvedTopics, ...staleTopics],
+  };
+}
 
 export const EMPTY_CONVERSATION_TOPIC_STATE: ConversationTopicState = {
   recentTopics: [],
@@ -158,7 +181,7 @@ export function applyConversationTopicUpdate(
 export function completeMeetupTopicState(stateValue: ConversationTopicState): ConversationTopicState {
   const state = normalizeConversationTopicState(stateValue);
   const withoutMeetupPreparation = (topics: string[]) =>
-    topics.filter((topic) => !MEETUP_PREPARATION_TOPIC_PATTERN.test(topic));
+    topics.filter((topic) => !isMeetupPlanningTopic(topic));
 
   return {
     recentTopics: withoutMeetupPreparation(state.recentTopics),
@@ -183,6 +206,8 @@ export function buildConversationTopicPromptHint(stateValue: ConversationTopicSt
 - 이미 충분히 이야기한 소재는 마지막 user 메시지가 직접 다시 언급하지 않는 한 네가 먼저 꺼내지 마.
 - 최근 대화 소재와 같은 질문을 표현만 바꿔 반복하지 마.
 - 미해결 소재는 다음 답변에서 반드시 꺼낼 할 일 목록이 아니라 참고용 기억이야.
+- 네가 혼자 제안하거나 가정한 만남은 공유된 미해결 소재가 아니야. 유저가 명확히 동의하기 전에는
+  "내일 만남 계획", "주말 데이트" 같은 항목을 unresolvedTopics에 넣지 마.
 - 미해결 소재는 현재 user 메시지와 의미상 관련 있거나, 약속 시간이 가까워졌거나, 유저가 다시 직접 언급했거나,
   현재 흐름이 자연스럽게 이어지거나, 실제 event 처리 시점이 된 경우에만 먼저 언급해.
 - 현재 user 메시지가 새 화제라면 미해결 소재보다 새 화제를 우선하고, 관련 없는 미해결 소재는 언급하지 마.

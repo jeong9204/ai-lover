@@ -40,9 +40,11 @@ import {
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import { buildActivityPromptHint, currentActivity, extractActivityFromAssistantReply } from "@/lib/activities";
 import { checkLLMRateLimit } from "@/lib/rate-limit";
+import { hasConfirmedMeetupContext } from "@/lib/commitments";
 import {
   applyConversationTopicUpdate,
   buildConversationTopicPromptHint,
+  guardUnconfirmedMeetupTopics,
 } from "@/lib/conversation-topics";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -231,7 +233,18 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
 
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage = session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
-  const topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
+  const topicState = applyConversationTopicUpdate(
+    session.topicState,
+    guardUnconfirmedMeetupTopics({
+      currentState: session.topicState,
+      update: structured.conversationState,
+      hasConfirmedMeetup: hasConfirmedMeetupContext({
+        userMessage: "",
+        recentMessages: session.messages,
+        commitments: session.commitments,
+      }),
+    })
+  );
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,
