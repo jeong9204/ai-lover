@@ -149,9 +149,21 @@ const EXPLICIT_MEETUP_REQUEST_PATTERN =
 const MEETUP_FALSE_POSITIVE_PATTERN =
   /(씻고|샤워하고|문\s*잠|들어갔|들어왔|나왔|나왔다|도착|집\s*왔|집에\s*왔|퇴근했|누워|자려고|물어\s*봐|알아\s*봐|확인해\s*봐|해\s*봐|봐\s*볼래|데이트\s*때|입을\s*옷|옷\s*(고르|골라|뭐\s*입)|뭐\s*입고|장소\s*(정하|고르)|그날\s*(봐|보자|볼래)|그때\s*(봐|보자|볼래)|나중에\s*(봐|보자|볼래|말|연락|알려|해)|언젠가\s*(봐|보자|볼래)|다음에\s*(봐|보자|볼래)|내일\s*(봐|보자|볼래|보면|만나|데이트)|모레\s*(봐|보자|볼래|만나|데이트)|(월|화|수|목|금|토|일)요일에?\s*(봐|보자|볼래|만나|데이트)|이따\s*(말|연락|알려|해))/;
 
+const AFFECTIONATE_LOOK_ONLY_PATTERN =
+  /(나만\s*(봐|보러\s*와|보러와)|나만을\s*(봐|보러\s*와|보러와))/;
+
+const CONCRETE_MEETUP_TIME_PATTERN =
+  /(지금|오늘|잠깐|이따|좀\s*있다|곧|바로|밖에서|공원에서|집\s*앞|근처)/;
+
 export function isExplicitMeetupRequest(message: string): boolean {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (!EXPLICIT_MEETUP_REQUEST_PATTERN.test(normalized)) return false;
+  if (
+    AFFECTIONATE_LOOK_ONLY_PATTERN.test(normalized) &&
+    !CONCRETE_MEETUP_TIME_PATTERN.test(normalized)
+  ) {
+    return false;
+  }
   return !MEETUP_FALSE_POSITIVE_PATTERN.test(normalized);
 }
 
