@@ -1,4 +1,4 @@
-import { koreanHour } from "./korean-date";
+import { KOREA_TIME_ZONE, koreanDateKey, koreanHour, koreanTime } from "./korean-date";
 
 function timeLabel(hour: number): string {
   if (hour < 6) return "새벽";
@@ -11,15 +11,18 @@ function timeLabel(hour: number): string {
 export function buildCurrentTimePromptHint(timestamp = Date.now()): string {
   const hour = koreanHour(timestamp);
   const label = timeLabel(hour);
-  const sleepGuidance =
-    hour >= 22 || hour < 6
-      ? "늦은 시간이므로 자연스러울 때만 자러 가기, 쉬기, 내일을 위해 늦게까지 깨 있지 말기 같은 말을 해도 된다."
-      : "아침/낮/저녁 초반에는 자라, 잘 준비해, 늦잠 자면 안 돼 같은 밤 대사를 하지 마. 대신 오늘 하루, 준비, 이동, 밥, 컨디션, 내일 약속 기대처럼 시간대에 맞는 말을 해.";
 
   return `
 [현재 시간]
-현재 한국 시간은 ${hour}시대이고, 시간대는 ${label}이야.
-${sleepGuidance}
-내일 약속이 있어도 현재 시간이 아침/낮이면 "잘 준비해"보다 "오늘 잘 보내고 내일 보자", "뭐 입을지 벌써 고민되네"처럼 현재 시간에 맞춰 말해.
+현재 날짜: ${koreanDateKey(timestamp)}
+현재 시간: ${koreanTime(timestamp)}
+현재 시간대: ${KOREA_TIME_ZONE}
+현재 시간 구간: ${label}
+
+이 시간 정보는 말투와 생활감을 자연스럽게 조절하기 위한 참고값이지, 대화를 종료하라는 명령이 아니야.
+밤이나 새벽이어도 유저가 새 화제를 꺼내거나 더 이야기하고 싶어 하면 그 화제를 자연스럽게 이어가.
+유저가 직접 "졸려", "자야겠다", "이제 잘게"처럼 취침 의사를 밝혔을 때만 잘 자라는 답을 적극적으로 해.
+시간이 늦다는 이유만으로 "이제 자", "내일 얘기하자", "컨디션 챙겨"를 반복하거나 건강을 훈계하지 마.
+이미 한 번 잠을 권한 뒤 유저가 새 화제를 시작했다면, 현재 답변에서 수면이나 내일 일정을 다시 끌고 오지 마.
 `.trim();
 }

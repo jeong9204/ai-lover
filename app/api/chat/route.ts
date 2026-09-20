@@ -56,6 +56,7 @@ import { buildPhotoSharePromptHint, createPhotoShareMessage } from "@/lib/photo-
 import {
   buildChatHistory,
   buildConversationSummaryHint,
+  buildCurrentTurnPriorityHint,
   buildDayBoundaryPromptHint,
   buildLimitResumePromptHint,
   buildWorkLoopAvoidanceHint,
@@ -328,6 +329,8 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
   const photoShareHint = buildPhotoSharePromptHint(pendingPhotoMessage);
   if (photoShareHint) systemPromptParts.push(photoShareHint);
+  // Keep this last so stale memories, promises, and time-of-day hints cannot outrank the current message.
+  systemPromptParts.push(buildCurrentTurnPriorityHint(message));
 
   const systemPrompt = systemPromptParts.join("\n\n");
 

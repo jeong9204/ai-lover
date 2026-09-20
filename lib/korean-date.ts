@@ -1,4 +1,4 @@
-const KOREA_TIME_ZONE = "Asia/Seoul";
+export const KOREA_TIME_ZONE = "Asia/Seoul";
 
 const dateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: KOREA_TIME_ZONE,
@@ -13,6 +13,13 @@ const dateLabelFormatter = new Intl.DateTimeFormat("ko-KR", {
   month: "long",
   day: "numeric",
   weekday: "long",
+});
+
+const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: KOREA_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
 });
 
 export function koreanDateKey(timestamp = Date.now()): string {
@@ -34,6 +41,10 @@ export function koreanHour(timestamp = Date.now()): number {
     hourCycle: "h23",
   }).format(new Date(timestamp));
   return Number(hour);
+}
+
+export function koreanTime(timestamp = Date.now()): string {
+  return timeFormatter.format(new Date(timestamp));
 }
 
 export function isDifferentKoreanDay(prevTimestamp: number, currentTimestamp: number): boolean {

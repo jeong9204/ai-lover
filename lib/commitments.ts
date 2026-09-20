@@ -210,8 +210,9 @@ export function buildCommitmentPromptHint(commitments: Commitment[]): string {
 
   return `
 [아직 이어지는 약속/계획]
-아래 내용은 일반 대화보다 우선해서 기억해야 하는 미완료 약속이야.
-관련 화제가 나오면 자연스럽게 이어서 말하고, 네가 맡은 일은 까먹은 척하지 마:
+아래 내용은 잊지 않기 위한 참고 정보지만, 마지막 user 메시지의 현재 화제보다 우선하지 않아.
+현재 메시지와 관련 있거나 실제 약속 시점이 가까울 때만 자연스럽게 이어서 말하고, 관련 없는 새 화제에는 끌어오지 마.
+네가 맡은 일은 관련 상황에서 까먹은 척하지 마:
 ${pending
   .map((item) => {
     const due = item.dueLabel ? ` / ${item.dueLabel}` : "";

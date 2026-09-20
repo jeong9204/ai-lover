@@ -106,6 +106,45 @@ ${lines.map((line) => `- ${line}`).join("\n")}
 `.trim();
 }
 
+export function buildCurrentTurnPriorityHint(userMessage: string): string {
+  const normalized = userMessage.replace(/\s+/g, " ").trim();
+  const hasExplicitSleepIntent =
+    /(너무\s*)?(졸려|잠\s*와|잠이\s*와|자야겠|자야\s*돼|자러\s*갈|이제\s*잘게|먼저\s*잘게|잘\s*거야)/u.test(
+      normalized
+    );
+  const wantsToKeepTalking =
+    /(잠\s*안\s*와|잠이\s*안\s*와|더\s*얘기|조금만\s*더|계속\s*얘기|말동무|안\s*잘래)/u.test(
+      normalized
+    );
+  const hasTopicShift = /(^|\s)(근데|그런데|아무튼|갑자기|그러고\s*보니|아\s*맞다|요즘)(\s|$)/u.test(
+    normalized
+  );
+
+  const lines = [
+    "[현재 답변 우선순위]",
+    "1. 마지막 user 메시지의 직접적인 의도와 현재 화제",
+    "2. 바로 최근 몇 턴의 흐름",
+    "3. 현재 감정과 관계 상태",
+    "4. 현재 메시지와 관련 있는 미해결 소재/약속",
+    "5. 오래된 memory와 요약",
+    "현재 user 메시지와 관계없는 미해결 소재나 오래된 기억을 이번 답변에 억지로 연결하지 마.",
+  ];
+
+  if (!hasExplicitSleepIntent) {
+    lines.push(
+      "유저는 이번 메시지에서 취침 의사를 직접 밝히지 않았어. 시간이 늦다는 이유만으로 잠, 내일, 알람, 컨디션 이야기를 꺼내지 마."
+    );
+  }
+  if (wantsToKeepTalking) {
+    lines.push("유저가 계속 대화하고 싶다고 명확히 말했어. 잠을 권하지 말고 현재 대화를 이어가.");
+  }
+  if (hasTopicShift) {
+    lines.push("유저가 새 화제로 전환했어. 직전 수면/약속/미해결 소재로 되돌리지 말고 새 화제에 먼저 답해.");
+  }
+
+  return lines.join("\n");
+}
+
 export function buildWorkLoopAvoidanceHint(messages: ChatMessage[]): string | null {
   const recentAssistantMessages = messages
     .filter((m) => m.role === "assistant")
