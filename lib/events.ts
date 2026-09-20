@@ -188,6 +188,11 @@ export function hasRecentMeetupContext(messages: ChatMessage[], lookback = 12): 
   return messages.slice(-lookback).some((message) => message.eventType === "meetup_completed");
 }
 
+export function latestMeetupCompletedAt(messages: ChatMessage[]): number | null {
+  const completed = [...messages].reverse().find((message) => message.eventType === "meetup_completed");
+  return completed?.timestamp ?? null;
+}
+
 const MEETUP_TRAVEL_CONTEXT_PATTERN =
   /(가는\s*중|뛰어\s*갈|뛰어갈|갈게|갈께|가고\s*있|거의\s*다\s*왔|다\s*왔|도착하면|잠깐만\s*기다려|조금만\s*기다려|손\s*흔들|보인다|보여)/;
 
@@ -221,7 +226,9 @@ export function buildAfterMeetupPromptHint(hasContext: boolean, personaType: Per
   return [
     "[최근 만남 이후]",
     "최근 대화에서 둘은 이미 만나고 돌아왔다.",
-    "이후 대화는 새 만남 이벤트를 만들지 말고, 만남 뒤 다시 카톡으로 이어지는 여운처럼 이어간다.",
+    "완료된 약속은 더 이상 예정된 만남이 아니다. 몇 시에 볼지, 어디 갈지, 늦을지, 만나기 전 컨디션을 먼저 묻지 마.",
+    "유저가 방금 완료된 만남을 언급하면 이미 함께 시간을 보낸 사실을 기준으로 회고 대화를 해.",
+    "유저가 이후 날짜의 새 만남을 명확히 제안하면 그것은 별개의 새 약속이므로 정상적으로 응답할 수 있다.",
     "유저가 문, 씻기, 머리 말리기, 도착, 들어감, 나옴 같은 말을 해도 실제 만남 장면을 다시 시작하지 않는다.",
     "필요하면 '방금 보고 온 사람'처럼 걱정하거나 장난치되, 카톡 대화 안에서만 반응한다.",
     `톤: ${tone}`,

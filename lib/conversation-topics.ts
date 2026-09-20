@@ -13,6 +13,8 @@ const MAX_TOPIC_LENGTH = 40;
 const TOPIC_META_SUFFIX_PATTERN = /\s*(상세|마무리|언급|대화|이야기|질문|답변)$/u;
 const DISPOSABLE_CHITCHAT_PATTERN =
   /^(오랜만(?:이야)?(?:\s*인사)?|인사|안부|근황\s*질문|말\s*더듬(?:기)?(?:\s*놀림)?|웃음|농담|장난|짧은\s*반응|리액션|뭐\s*해(?:\s*질문)?|잘\s*잤어(?:\s*질문)?|졸려|배고파)$/u;
+const MEETUP_PREPARATION_TOPIC_PATTERN =
+  /((오늘|내일|모레|주말|이번\s*주|다음\s*주).*(만나|만날|보기|볼\s*약속|데이트)|(영화|카페|식사|저녁|주말).*약속|데이트\s*(약속|준비|장소|시간)|갈\s*곳|장소\s*(정|고르)|몇\s*시|만날\s*시간|지각|늦으면|만나기\s*전|입을\s*옷|뭐\s*입고)/u;
 
 export const EMPTY_CONVERSATION_TOPIC_STATE: ConversationTopicState = {
   recentTopics: [],
@@ -151,6 +153,18 @@ export function applyConversationTopicUpdate(
   ]);
 
   return next;
+}
+
+export function completeMeetupTopicState(stateValue: ConversationTopicState): ConversationTopicState {
+  const state = normalizeConversationTopicState(stateValue);
+  const withoutMeetupPreparation = (topics: string[]) =>
+    topics.filter((topic) => !MEETUP_PREPARATION_TOPIC_PATTERN.test(topic));
+
+  return {
+    recentTopics: withoutMeetupPreparation(state.recentTopics),
+    exhaustedTopics: withoutMeetupPreparation(state.exhaustedTopics),
+    unresolvedTopics: withoutMeetupPreparation(state.unresolvedTopics),
+  };
 }
 
 export function buildConversationTopicPromptHint(stateValue: ConversationTopicState): string {

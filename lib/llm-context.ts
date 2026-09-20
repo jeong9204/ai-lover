@@ -31,8 +31,19 @@ function isStaleLimitBlockedMessage(message: ChatMessage, now = Date.now()): boo
   return message.metadata?.limitBlocked === true && isDifferentKoreanDay(message.timestamp, now);
 }
 
+export function messagesAfterLatestMeetupCompletion(messages: ChatMessage[]): ChatMessage[] {
+  let completedIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.eventType === "meetup_completed") {
+      completedIndex = index;
+      break;
+    }
+  }
+  return completedIndex >= 0 ? messages.slice(completedIndex) : messages;
+}
+
 export function buildChatHistory(messages: ChatMessage[], nextUserMessage: string): LLMMessage[] {
-  const history = messages
+  const history = messagesAfterLatestMeetupCompletion(messages)
     .filter((m) => m.role === "user" || m.role === "assistant")
     .slice(-CHAT_HISTORY_LIMIT)
     .map((m) => ({
@@ -45,7 +56,7 @@ export function buildChatHistory(messages: ChatMessage[], nextUserMessage: strin
 }
 
 export function buildEventHistory(messages: ChatMessage[], trigger: string): LLMMessage[] {
-  const history = messages
+  const history = messagesAfterLatestMeetupCompletion(messages)
     .filter((m) => m.role === "user" || m.role === "assistant")
     .filter((m) => !isStaleLimitBlockedMessage(m))
     .slice(-EVENT_HISTORY_LIMIT)
@@ -59,7 +70,7 @@ export function buildEventHistory(messages: ChatMessage[], trigger: string): LLM
 }
 
 export function buildConversationSummaryHint(messages: ChatMessage[]): string | null {
-  const recent = messages.slice(-SUMMARY_LOOKBACK_LIMIT);
+  const recent = messagesAfterLatestMeetupCompletion(messages).slice(-SUMMARY_LOOKBACK_LIMIT);
   if (recent.length < 10) return null;
 
   const conversational = recent.filter((m) => m.role === "user" || m.role === "assistant");

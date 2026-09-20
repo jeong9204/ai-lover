@@ -702,19 +702,22 @@ export async function appendRelationshipMilestone(
 async function hasDuplicateCommitment(sessionId: string, draft: CommitmentDraft): Promise<boolean> {
   const { data, error } = await supabase
     .from("relationship_commitments")
-    .select("title, due_label, status, created_at")
+    .select("title, due_label, status, source_message, created_at")
     .eq("session_id", sessionId)
-    .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(20);
   if (error || !data) return false;
 
   const normalizedTitle = normalizeMemoryText(draft.title);
   const normalizedDue = normalizeMemoryText(draft.dueLabel ?? "");
+  const normalizedSource = normalizeMemoryText(draft.sourceMessage ?? "");
   return data.some((item) => {
     const sameTitle = normalizeMemoryText(item.title) === normalizedTitle;
     const sameDue = normalizeMemoryText(item.due_label ?? "") === normalizedDue;
-    return sameTitle && sameDue;
+    const sameSource =
+      normalizedSource.length > 0 &&
+      normalizeMemoryText(item.source_message ?? "") === normalizedSource;
+    return sameSource || (item.status === "pending" && sameTitle && sameDue);
   });
 }
 
@@ -733,6 +736,16 @@ export async function appendCommitment(
     due_label: draft.dueLabel ?? null,
     source_message: draft.sourceMessage ?? null,
   });
+}
+
+export async function completeCommitments(sessionId: string, commitmentIds: string[]): Promise<void> {
+  if (commitmentIds.length === 0) return;
+  await supabase
+    .from("relationship_commitments")
+    .update({ status: "done", updated_at: new Date().toISOString() })
+    .eq("session_id", sessionId)
+    .eq("status", "pending")
+    .in("id", commitmentIds);
 }
 
 export async function appendActivity(

@@ -4,6 +4,7 @@ import {
   appendMessage,
   appendMemory,
   appendCommitment,
+  completeCommitments,
   appendActivity,
   updateSession,
   countMessagesToday,
@@ -17,7 +18,12 @@ import {
 } from "@/lib/store";
 import { computeMood, PresenceContext } from "@/lib/mood";
 import { detectJealousyTrigger, JEALOUSY_PROMPT_HINT, buildEmotionPromptHint } from "@/lib/jealousy";
-import { pickRelevantMemories, buildMemoryPromptHint } from "@/lib/memory";
+import {
+  pickRelevantMemories,
+  buildMemoryPromptHint,
+  excludeCompletedMeetupPreparationMemories,
+  isMeetupPreparationMemoryText,
+} from "@/lib/memory";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import {
   PERSONA_BASE,
@@ -40,6 +46,7 @@ import {
   isMeetupArrivalSignal,
   isMeetupAcceptanceReply,
   isMeetupPlanningOnlyMessage,
+  latestMeetupCompletedAt,
   recentDeletedMessageHint,
 } from "@/lib/events";
 import { attemptReconnect } from "@/lib/reconnect";
@@ -55,7 +62,12 @@ import {
 } from "@/lib/llm-context";
 import { buildLocalShortReactionReply } from "@/lib/local-replies";
 import { findAcceptedConfessionTimestamp, shouldAcceptConfessionEnding } from "@/lib/confession";
-import { buildCommitmentPromptHint, extractCommitmentsFromTurn } from "@/lib/commitments";
+import {
+  buildCommitmentPromptHint,
+  commitmentIdsForCompletedMeetup,
+  extractCommitmentsFromTurn,
+  isMeetupPreparationCommitment,
+} from "@/lib/commitments";
 import { buildCurrentTimePromptHint } from "@/lib/time-context";
 import {
   buildActivityPromptHint,
@@ -69,6 +81,7 @@ import { checkLLMRateLimit } from "@/lib/rate-limit";
 import {
   applyConversationTopicUpdate,
   buildConversationTopicPromptHint,
+  completeMeetupTopicState,
 } from "@/lib/conversation-topics";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -261,7 +274,10 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   }
 
   const isJealous = detectJealousyTrigger(message); // 보조 신호 — 최종 감정 판단은 LLM의 emotion/intensity가 담당
-  const relevantMemories = pickRelevantMemories(session.memories, message);
+  const relevantMemories = excludeCompletedMeetupPreparationMemories(
+    pickRelevantMemories(session.memories, message),
+    latestMeetupCompletedAt(session.messages)
+  );
   const pendingPhotoMessage = createPhotoShareMessage({
     userMessage: message,
     dailyState,
@@ -429,7 +445,11 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const relationshipScore = Math.max(0, Math.min(100, session.relationshipScore + structured.relationshipDelta));
   const relationshipStage =
     justConfessed || session.confessedAt ? CONFESSED_STAGE : stageForScore(relationshipScore);
-  const topicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
+  const completedMeetupAt = replyEventType === "meetup_request" ? now + 3 : null;
+  const updatedTopicState = applyConversationTopicUpdate(session.topicState, structured.conversationState);
+  const topicState = completedMeetupAt
+    ? completeMeetupTopicState(updatedTopicState)
+    : updatedTopicState;
   await updateSession(session.id, {
     relationshipScore,
     relationshipStage,
@@ -449,7 +469,10 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   });
   await Promise.all(milestones.map((milestone) => appendRelationshipMilestone(session.id, milestone)));
 
-  if (structured.memory) {
+  if (
+    structured.memory &&
+    !(completedMeetupAt && isMeetupPreparationMemoryText(structured.memory))
+  ) {
     const memoryType = inferMemoryType({
       emotion: structured.emotion,
       eventType: persistedEventType,
@@ -458,10 +481,23 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     await appendMemory(session.id, structured.memory, memoryType);
   }
 
+  const completedCommitmentIds = completedMeetupAt
+    ? commitmentIdsForCompletedMeetup(
+        session.commitments,
+        [
+          ...session.messages,
+          { role: "user", content: message, timestamp: now },
+          { role: "assistant", content: structured.message, timestamp: now + 1 },
+        ],
+        completedMeetupAt
+      )
+    : [];
+  await completeCommitments(session.id, completedCommitmentIds);
+
   const commitments = extractCommitmentsFromTurn({
     userMessage: message,
     assistantMessage: structured.message,
-  });
+  }).filter((commitment) => !(completedMeetupAt && isMeetupPreparationCommitment(commitment)));
   await Promise.all(commitments.map((commitment) => appendCommitment(session.id, commitment)));
   const activity =
     replyEventType === "call_request" || didFastForwardBusyWork
@@ -471,7 +507,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
   const responseCommitments: Commitment[] =
     commitments.length > 0
       ? [
-          ...session.commitments,
+          ...session.commitments.filter((commitment) => !completedCommitmentIds.includes(commitment.id)),
           ...commitments.map((commitment, index) => ({
             id: `pending-${now}-${index}`,
             title: commitment.title,
@@ -483,7 +519,7 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
             createdAt: now,
           })),
         ]
-      : session.commitments;
+      : session.commitments.filter((commitment) => !completedCommitmentIds.includes(commitment.id));
   const responseActivities = activity
     ? [
         ...session.activities,

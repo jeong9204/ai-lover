@@ -4,11 +4,21 @@
 
 import { computeMood, MoodState } from "./mood";
 import { buildEmotionPromptHint } from "./jealousy";
-import { pickSpontaneousMemory, buildMemoryPromptHint } from "./memory";
+import {
+  pickSpontaneousMemory,
+  buildMemoryPromptHint,
+  excludeCompletedMeetupPreparationMemories,
+} from "./memory";
 import { PERSONA_BASE, buildCharacterNameHint, buildUserNameHint } from "./persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "./llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "./schema";
-import { shouldSendReconnectMessage, buildReconnectTrigger } from "./events";
+import {
+  shouldSendReconnectMessage,
+  buildReconnectTrigger,
+  buildAfterMeetupPromptHint,
+  hasRecentMeetupContext,
+  latestMeetupCompletedAt,
+} from "./events";
 import {
   appendMessage,
   updateSession,
@@ -147,7 +157,12 @@ export async function attemptReconnect(
   const emotionHint = buildEmotionPromptHint(session.emotion as Emotion, session.emotionIntensity);
   const dailyState = await getOrCreateCharacterDailyState(session.id);
   const dailyStateHint = buildDailyStatePromptHint(dailyState);
-  const spontaneousMemory = pickSpontaneousMemory(session.memories);
+  const spontaneousMemory = pickSpontaneousMemory(
+    excludeCompletedMeetupPreparationMemories(
+      session.memories,
+      latestMeetupCompletedAt(session.messages)
+    )
+  );
   const memoryHint = buildMemoryPromptHint(spontaneousMemory ? [spontaneousMemory] : []);
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
   const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
@@ -175,6 +190,11 @@ export async function attemptReconnect(
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
   const limitResumeHint = buildLimitResumePromptHint(session.messages);
   if (limitResumeHint) systemPromptParts.push(limitResumeHint);
+  const afterMeetupHint = buildAfterMeetupPromptHint(
+    hasRecentMeetupContext(session.messages),
+    session.personaType
+  );
+  if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const historyTrigger = returnActivity

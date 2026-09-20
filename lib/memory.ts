@@ -4,6 +4,24 @@
 
 import { Memory } from "./store";
 
+const MEETUP_PREPARATION_MEMORY_PATTERN =
+  /(만나기로|만날\s*약속|보자고|보기로|데이트\s*(약속|준비)|몇\s*시에|어디서\s*볼|갈\s*곳|장소\s*(정|고르)|늦지|지각|입을\s*옷|뭐\s*입고)/u;
+
+export function isMeetupPreparationMemoryText(text: string): boolean {
+  return MEETUP_PREPARATION_MEMORY_PATTERN.test(text);
+}
+
+export function excludeCompletedMeetupPreparationMemories(
+  memories: Memory[],
+  completedAt: number | null
+): Memory[] {
+  if (completedAt === null) return memories;
+  return memories.filter(
+    (memory) =>
+      memory.createdAt > completedAt || !isMeetupPreparationMemoryText(memory.text)
+  );
+}
+
 /**
  * 현재 유저 메시지와 관련 있어 보이는 기억을 최대 2개까지 골라 반환.
  * 최근 3일 이내 + 아직 최근에 언급 안 한 기억을 우선한다.

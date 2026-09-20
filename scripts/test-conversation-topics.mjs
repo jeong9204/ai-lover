@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import {
   applyConversationTopicUpdate,
+  completeMeetupTopicState,
   EMPTY_CONVERSATION_TOPIC_STATE,
   normalizeConversationTopicState,
 } from "../lib/conversation-topics.ts";
+import { commitmentIdsForCompletedMeetup } from "../lib/commitments.ts";
 
 function update(state, patch) {
   return applyConversationTopicUpdate(state, {
@@ -54,5 +56,54 @@ assert.deepEqual(normalizedConflict, {
   exhaustedTopics: ["회사 업무 스트레스"],
   unresolvedTopics: [],
 });
+
+const completedMeetupTopics = completeMeetupTopicState({
+  recentTopics: ["오늘 만날 약속", "새로 산 신발"],
+  exhaustedTopics: [],
+  unresolvedTopics: ["갈 곳 정하기", "몇 시에 만날지", "토요일 영화 약속"],
+});
+assert.deepEqual(completedMeetupTopics, {
+  recentTopics: ["새로 산 신발"],
+  exhaustedTopics: [],
+  unresolvedTopics: [],
+});
+
+const completedAt = Date.parse("2026-09-21T09:00:00+09:00");
+const commitments = [
+  {
+    id: "current-meetup",
+    title: "만날 약속",
+    detail: "오늘 만나기로 함",
+    owner: "shared",
+    dueLabel: "오늘",
+    status: "pending",
+    sourceMessage: "오늘 저녁에 만나자",
+    createdAt: Date.parse("2026-09-21T07:00:00+09:00"),
+  },
+  {
+    id: "future-meetup",
+    title: "만날 약속",
+    detail: "다음 주에 다시 보기",
+    owner: "shared",
+    dueLabel: "다음 주",
+    status: "pending",
+    sourceMessage: "다음 주말에 또 볼래?",
+    createdAt: Date.parse("2026-09-21T08:00:00+09:00"),
+  },
+];
+const completedIds = commitmentIdsForCompletedMeetup(
+  commitments,
+  [
+    { role: "user", content: "오늘 저녁에 만나자", timestamp: completedAt - 2000 },
+    { role: "user", content: "다음 주말에 또 볼래?", timestamp: completedAt - 1000 },
+  ],
+  completedAt
+);
+assert.deepEqual(completedIds, ["current-meetup"]);
+
+const futureTopicState = update(completedMeetupTopics, {
+  unresolvedTopics: ["이번 주말 새 만남 약속"],
+});
+assert.deepEqual(futureTopicState.unresolvedTopics, ["이번 주말 새 만남 약속"]);
 
 console.log("conversation topic tests: ok");

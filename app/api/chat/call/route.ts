@@ -22,7 +22,12 @@ import { buildEmotionPromptHint } from "@/lib/jealousy";
 import { PERSONA_BASE, buildCharacterNameHint, buildUserNameHint } from "@/lib/persona";
 import { generateStructuredReply, STRUCTURED_OUTPUT_GUIDE, LLMMessage } from "@/lib/llm";
 import { stageForScore, conversationMoodFromEmotion, Emotion, CONFESSED_STAGE } from "@/lib/schema";
-import { buildCallEndedLabel, buildCallEndedTrigger } from "@/lib/events";
+import {
+  buildAfterMeetupPromptHint,
+  buildCallEndedLabel,
+  buildCallEndedTrigger,
+  hasRecentMeetupContext,
+} from "@/lib/events";
 import { buildDailyStatePromptHint } from "@/lib/daily-state";
 import { inferMemoryType, milestonesFromTurn } from "@/lib/milestones";
 import { isDeveloperRequest } from "@/lib/dev-mode";
@@ -152,6 +157,11 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   if (dayBoundaryHint) systemPromptParts.push(dayBoundaryHint);
   const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);
+  const afterMeetupHint = buildAfterMeetupPromptHint(
+    hasRecentMeetupContext(session.messages),
+    session.personaType
+  );
+  if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const history: LLMMessage[] = buildEventHistory(session.messages, buildCallEndedTrigger(clampedDuration, callEndedBy));

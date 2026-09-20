@@ -95,6 +95,80 @@ function isCommitmentLike(text: string): boolean {
   return hasPlanSubject && hasCommitmentVerb;
 }
 
+const MEETUP_COMMITMENT_TITLES = new Set([
+  "만날 약속",
+  "갈 곳 찾아두기",
+  "영화표 챙기기",
+  "예약 챙기기",
+  "챙길 것 확인",
+]);
+
+function kstDayIndex(timestamp: number): number {
+  return Math.floor((timestamp + 9 * 60 * 60 * 1000) / (24 * 60 * 60 * 1000));
+}
+
+function kstWeekIndex(timestamp: number): number {
+  const date = new Date(timestamp + 9 * 60 * 60 * 1000);
+  const mondayOffset = (date.getUTCDay() + 6) % 7;
+  return Math.floor((kstDayIndex(timestamp) - mondayOffset) / 7);
+}
+
+function dueMatchesCompletion(commitment: Commitment, completedAt: number): boolean {
+  const due = commitment.dueLabel;
+  if (!due) return false;
+  const dayDifference = kstDayIndex(completedAt) - kstDayIndex(commitment.createdAt);
+  if (due === "오늘") return dayDifference === 0;
+  if (due === "내일") return dayDifference === 1;
+  if (due === "모레") return dayDifference === 2;
+  if (due === "이번 주") return kstWeekIndex(completedAt) === kstWeekIndex(commitment.createdAt);
+  if (due === "다음 주") return kstWeekIndex(completedAt) === kstWeekIndex(commitment.createdAt) + 1;
+
+  const weekdays = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+  const completedWeekday = weekdays[new Date(completedAt + 9 * 60 * 60 * 1000).getUTCDay()];
+  return due === completedWeekday && completedAt >= commitment.createdAt;
+}
+
+export function isMeetupPreparationCommitment(
+  commitment: Pick<Commitment, "title"> &
+    Partial<Pick<Commitment, "detail" | "sourceMessage">>
+): boolean {
+  if (MEETUP_COMMITMENT_TITLES.has(commitment.title)) return true;
+  const context = normalize(`${commitment.detail ?? ""} ${commitment.sourceMessage ?? ""}`);
+  return /(만나|보자|볼래|데이트|카페|영화|맛집|식당|장소|예매|예약)/u.test(context);
+}
+
+export function commitmentIdsForCompletedMeetup(
+  commitments: Commitment[],
+  recentMessages: ChatMessage[],
+  completedAt: number
+): string[] {
+  const isFutureOnlySource = (source: string) =>
+    /(나중에|다음에|언젠가|다음\s*달|다다음|또\s*(보자|볼래|만나))/u.test(source);
+  const recentContext = normalize(recentMessages.slice(-20).map((message) => message.content).join(" "));
+  const candidates = commitments
+    .filter((commitment) => commitment.status === "pending")
+    .filter(isMeetupPreparationCommitment)
+    .filter((commitment) => commitment.createdAt <= completedAt)
+    .sort((left, right) => right.createdAt - left.createdAt);
+
+  const matched = candidates.filter((commitment) => {
+    if (commitment.dueLabel) return dueMatchesCompletion(commitment, completedAt);
+    const source = normalize(commitment.sourceMessage ?? "");
+    if (isFutureOnlySource(source)) return false;
+    return source.length >= 4 && recentContext.includes(source);
+  });
+  const currentUndated = candidates.filter(
+    (commitment) =>
+      !commitment.dueLabel &&
+      !isFutureOnlySource(normalize(commitment.sourceMessage ?? ""))
+  );
+  for (const commitment of currentUndated) {
+    if (!matched.some((item) => item.id === commitment.id)) matched.push(commitment);
+  }
+
+  return matched.map((commitment) => commitment.id);
+}
+
 export function extractCommitmentsFromTurn(input: {
   userMessage: string;
   assistantMessage?: string | null;
