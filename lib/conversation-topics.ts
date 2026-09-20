@@ -10,6 +10,9 @@ export interface ConversationTopicUpdate extends ConversationTopicState {
 
 const MAX_TOPICS_PER_GROUP = 6;
 const MAX_TOPIC_LENGTH = 40;
+const TOPIC_META_SUFFIX_PATTERN = /\s*(상세|마무리|언급|대화|이야기|질문|답변)$/u;
+const DISPOSABLE_CHITCHAT_PATTERN =
+  /^(오랜만(?:이야)?(?:\s*인사)?|인사|안부|근황\s*질문|말\s*더듬(?:기)?(?:\s*놀림)?|웃음|농담|장난|짧은\s*반응|리액션|뭐\s*해(?:\s*질문)?|잘\s*잤어(?:\s*질문)?|졸려|배고파)$/u;
 
 export const EMPTY_CONVERSATION_TOPIC_STATE: ConversationTopicState = {
   recentTopics: [],
@@ -26,7 +29,26 @@ function compactTopic(value: unknown): string | null {
     .replace(/^[\s,./#!$%^&*;:{}=\-_`~()]+|[\s,./#!$%^&*;:{}=\-_`~()]+$/g, "")
     .trim();
   if (!normalized) return null;
-  return normalized.slice(0, MAX_TOPIC_LENGTH);
+
+  let topic = normalized;
+  while (TOPIC_META_SUFFIX_PATTERN.test(topic)) {
+    topic = topic.replace(TOPIC_META_SUFFIX_PATTERN, "").trim();
+  }
+  if (!topic || DISPOSABLE_CHITCHAT_PATTERN.test(topic)) return null;
+
+  const hasWorkContext = /(회사|업무|직장|팀장|상사|퇴근|야근|수정)/u.test(topic);
+  const hasWorkStress = /(힘들|힘든|힘듦|고된|스트레스|수정|지시|압박|야근|과로)/u.test(topic);
+  if (hasWorkContext && hasWorkStress) return "회사 업무 스트레스";
+
+  const hasSleepContext = /(잠|수면|불면)/u.test(topic);
+  const hasSleepProblem = /(못|문제|부족|설치|깨|피곤)/u.test(topic);
+  if (hasSleepContext && hasSleepProblem) return "수면 문제";
+
+  const hasMealContext = /(식사|밥|끼니)/u.test(topic);
+  const hasMealProblem = /(못|거르|문제|제대로)/u.test(topic);
+  if (hasMealContext && hasMealProblem) return "식사 문제";
+
+  return topic.slice(0, MAX_TOPIC_LENGTH);
 }
 
 function topicKey(topic: string): string {
@@ -60,10 +82,19 @@ export function normalizeConversationTopicState(value: unknown): ConversationTop
     return { ...EMPTY_CONVERSATION_TOPIC_STATE };
   }
   const candidate = value as Partial<ConversationTopicState>;
+  const unresolvedTopics = normalizeTopics(candidate.unresolvedTopics);
+  const exhaustedTopics = removeMatching(
+    normalizeTopics(candidate.exhaustedTopics),
+    unresolvedTopics
+  );
+  const recentTopics = removeMatching(
+    normalizeTopics(candidate.recentTopics),
+    [...exhaustedTopics, ...unresolvedTopics]
+  );
   return {
-    recentTopics: normalizeTopics(candidate.recentTopics),
-    exhaustedTopics: normalizeTopics(candidate.exhaustedTopics),
-    unresolvedTopics: normalizeTopics(candidate.unresolvedTopics),
+    recentTopics,
+    exhaustedTopics,
+    unresolvedTopics,
   };
 }
 
@@ -90,6 +121,8 @@ export function applyConversationTopicUpdate(
   const exhausted = normalizeTopics(updateValue.exhaustedTopics);
   const unresolved = normalizeTopics(updateValue.unresolvedTopics);
   const resolved = normalizeTopics(updateValue.resolvedTopics);
+  const incomingRecent = removeMatching(recent, [...exhausted, ...unresolved]);
+  const incomingExhausted = removeMatching(exhausted, unresolved);
 
   let next: ConversationTopicState = {
     recentTopics: removeMatching(current.recentTopics, resolved),
@@ -98,17 +131,24 @@ export function applyConversationTopicUpdate(
   };
 
   next.recentTopics = appendTopics(
-    removeMatching(next.recentTopics, [...exhausted, ...unresolved]),
-    recent
+    removeMatching(next.recentTopics, [...incomingExhausted, ...unresolved]),
+    incomingRecent
   );
   next.exhaustedTopics = appendTopics(
-    removeMatching(next.exhaustedTopics, [...recent, ...unresolved]),
-    exhausted
+    removeMatching(next.exhaustedTopics, [...incomingRecent, ...unresolved]),
+    incomingExhausted
   );
   next.unresolvedTopics = appendTopics(
     removeMatching(next.unresolvedTopics, [...recent, ...exhausted]),
     unresolved
   );
+
+  // 한 턴의 구조화 출력이 충돌하더라도 unresolved > exhausted > recent 순으로 하나만 남긴다.
+  next.exhaustedTopics = removeMatching(next.exhaustedTopics, next.unresolvedTopics);
+  next.recentTopics = removeMatching(next.recentTopics, [
+    ...next.exhaustedTopics,
+    ...next.unresolvedTopics,
+  ]);
 
   return next;
 }
@@ -124,6 +164,8 @@ export function buildConversationTopicPromptHint(stateValue: ConversationTopicSt
 - 아직 이어질 수 있는 소재: ${list(state.unresolvedTopics)}
 
 규칙:
+- Topic은 메시지 요약이 아니라, 나중에 다시 참조할 가치가 있는 지속적인 대화 소재야.
+- 기존 세 목록에 의미상 같은 소재가 있으면 새 이름을 만들지 말고 반드시 기존 Topic 명칭을 재사용해.
 - 이미 충분히 이야기한 소재는 마지막 user 메시지가 직접 다시 언급하지 않는 한 네가 먼저 꺼내지 마.
 - 최근 대화 소재와 같은 질문을 표현만 바꿔 반복하지 마.
 - 아직 이어질 수 있는 소재는 관련 시점이나 자연스러운 계기가 있을 때만 다시 언급해.
