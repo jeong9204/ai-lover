@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:closure": "node --experimental-strip-types scripts/test-conversation-closure.mjs",
     "test:topics": "node --experimental-strip-types scripts/test-conversation-topics.mjs",
     "cron": "node scripts/reconnect-cron.mjs"
   },

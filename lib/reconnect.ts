@@ -55,6 +55,11 @@ import {
   guardUnconfirmedMeetupTopics,
   type ConversationTopicState,
 } from "./conversation-topics";
+import {
+  buildExpiredClosurePromptHint,
+  conversationClosureFromMessages,
+  isConversationClosureActive,
+} from "./conversation-closure";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -105,6 +110,8 @@ export async function attemptReconnect(
   if (hasRecentProactiveMessage(session)) return null;
   if (currentActivity(session.activities)) return null;
 
+  const closure = conversationClosureFromMessages(session.messages);
+
   const scheduledCall = expiredScheduledCall(session.activities);
   if (scheduledCall && options.localOnly) return null;
   if (scheduledCall) {
@@ -133,6 +140,7 @@ export async function attemptReconnect(
       topicState: session.topicState,
     };
   }
+  if (isConversationClosureActive(closure)) return null;
   if (options.localOnly) return null;
 
   const mood = computeMood(session.lastMessageAt, {
@@ -168,6 +176,7 @@ export async function attemptReconnect(
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
   const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
   const limitEndingHint = recentLimitEndingHint(session);
+  const expiredClosureHint = buildExpiredClosurePromptHint(closure);
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
@@ -196,6 +205,7 @@ export async function attemptReconnect(
     session.personaType
   );
   if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
+  if (expiredClosureHint) systemPromptParts.push(expiredClosureHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 
   const historyTrigger = returnActivity
