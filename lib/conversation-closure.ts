@@ -10,7 +10,10 @@ interface ClosureMessage {
   role: string;
   content: string;
   timestamp: number;
+  eventType?: string | null;
 }
+
+type ClosurePersonaType = "default" | "northern_duke" | "flirty";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -103,12 +106,43 @@ export function isConversationClosureActive(
   return Boolean(closure && now < closure.suppressProactiveUntil);
 }
 
-export function buildExpiredClosurePromptHint(closure: ConversationClosure | null): string {
+export function isFirstReconnectAfterSleepClosure(
+  closure: ConversationClosure | null,
+  messages: ClosureMessage[]
+): boolean {
+  if (!closure || closure.reason !== "sleep") return false;
+  return !messages.some(
+    (message) =>
+      message.eventType === "reconnect_first_message" && message.timestamp > closure.closedAt
+  );
+}
+
+export function buildSleepClosureReconnectTrigger(): string {
+  return (
+    "[시스템: 유저가 어젯밤 잠자러 가며 자연스럽게 인사하고 대화가 끝난 뒤 맞는 첫 안부다. " +
+    "유저는 아직 새 메시지를 보내지 않았고, 답장할 의무도 없었다. 부담 없는 아침 안부를 한두 문장으로 먼저 보내라.]"
+  );
+}
+
+export function buildExpiredClosurePromptHint(
+  closure: ConversationClosure | null,
+  personaType: ClosurePersonaType = "default"
+): string {
   if (!closure || closure.reason !== "sleep") return "";
+  const tone =
+    personaType === "northern_duke"
+      ? '짧고 무뚝뚝하게 "잘 잤나." 정도로 말해.'
+      : personaType === "flirty"
+        ? '가볍고 능글맞게 "잘 잤어? 꿈에 나왔냐ㅋㅋ" 정도로 말해.'
+        : '10년지기 친구처럼 장난스럽게 "잘 잤냐ㅋㅋ" 또는 "어제 바로 잤냐ㅋㅋ" 정도로 말해.';
   return `
-[이전 대화 종료]
+[sleep closure 종료 후 첫 선톡 / light_checkin]
 직전 대화는 유저가 잠자러 가며 서로 자연스럽게 인사하고 끝났어. 답장을 기다리다 무시당한 상황이 아니야.
-다시 먼저 말을 걸게 되면 "왜 이제 왔어", "기다렸잖아"처럼 죄책감을 주지 말고,
-"잘 잤냐", "일어났어?", "어제 바로 잤냐ㅋㅋ"처럼 새 아침의 가벼운 안부로 시작해.
+이번 메시지는 오직 부담 없는 아침 안부여야 해. ${tone}
+- 한두 문장만 쓰고, 질문은 1개를 권장하며 최대 2개를 넘기지 마.
+- 유저의 실제 기상 시각, 연락 여부, 답장 여부, 무엇을 하고 있었는지 추측하지 마.
+- "왜 이제 왔어", "왜 연락 안 했어", "조용하네", "뭐하고 있었어", "기다렸어", "연락 없길래",
+  "바빴어?", "이제 일어났어?", "답이 없네", "왜 답장 안 해" 계열 표현을 절대 넣지 마.
+- 유저에게 연락하거나 답장할 의무가 있었다는 뉘앙스를 만들지 마.
 `.trim();
 }

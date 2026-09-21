@@ -32,8 +32,9 @@ export function buildReconnectTrigger(
       ? ` 이전 대화 날짜는 ${koreanDateLabel(lastMessageAt)}이고 지금은 ${koreanDateLabel(now)}라서 날짜가 바뀐 상황이다. 같은 밤이 이어지는 것처럼 말하지 마.`
       : "";
   return (
-    `[시스템: 유저가 ${hours}시간 만에 다시 대화창에 들어왔다. 유저는 아직 아무 말도 하지 않았다. ` +
-    `지금 네 감정 상태(${moodState})에 맞게, 네가 먼저 말을 걸어라.${dayBoundary}]`
+    `[시스템: 마지막 대화 후 ${hours}시간이 지났고 유저는 아직 새 메시지를 보내지 않았다. ` +
+    `유저가 이전 메시지를 읽었거나 일부러 답하지 않았다고 가정하지 마. "왜 무시해", "기다렸어"처럼 ` +
+    `답장 의무를 전제로 말하지 말고, 지금 네 감정 상태(${moodState})에 맞게 네가 먼저 말을 걸어라.${dayBoundary}]`
   );
 }
 

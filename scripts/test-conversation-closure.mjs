@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import {
   buildExpiredClosurePromptHint,
+  buildSleepClosureReconnectTrigger,
   conversationClosureFromMessages,
   detectConversationClosure,
+  isFirstReconnectAfterSleepClosure,
   isConversationClosureActive,
 } from "../lib/conversation-closure.ts";
 
@@ -26,6 +28,32 @@ const nightGoodbye = detectConversationClosure("잘자 내일 봐", atKoreanTime
 assert.equal(nightGoodbye?.reason, "sleep");
 assert.equal(nightGoodbye?.suppressProactiveUntil, atKoreanTime("2026-09-21T09:00:00"));
 assert.match(buildExpiredClosurePromptHint(nightGoodbye), /무시당한 상황이 아니야/u);
+const defaultHint = buildExpiredClosurePromptHint(nightGoodbye, "default");
+assert.match(defaultHint, /한두 문장/u);
+assert.match(defaultHint, /질문은 1개/u);
+assert.match(defaultHint, /조용하네/u);
+assert.match(defaultHint, /잘 잤냐ㅋㅋ/u);
+assert.match(buildExpiredClosurePromptHint(nightGoodbye, "northern_duke"), /잘 잤나/u);
+assert.match(buildExpiredClosurePromptHint(nightGoodbye, "flirty"), /꿈에 나왔냐/u);
+assert.match(buildSleepClosureReconnectTrigger(), /답장할 의무도 없었다/u);
+
+const beforeFirstReconnect = [
+  { role: "user", content: "응 잘자~ 내일 봐", timestamp: sleepAt },
+  { role: "assistant", content: "응 잘자ㅎㅎ", timestamp: sleepAt + 1 },
+];
+assert.equal(isFirstReconnectAfterSleepClosure(sleepClosure, beforeFirstReconnect), true);
+assert.equal(
+  isFirstReconnectAfterSleepClosure(sleepClosure, [
+    ...beforeFirstReconnect,
+    {
+      role: "assistant",
+      content: "잘 잤냐ㅋㅋ",
+      timestamp: atKoreanTime("2026-09-21T09:10:00"),
+      eventType: "reconnect_first_message",
+    },
+  ]),
+  false
+);
 
 const busyAt = atKoreanTime("2026-09-21T18:00:00");
 const busyClosure = detectConversationClosure("나 씻고 올게", busyAt);

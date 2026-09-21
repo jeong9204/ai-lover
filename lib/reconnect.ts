@@ -57,7 +57,9 @@ import {
 } from "./conversation-topics";
 import {
   buildExpiredClosurePromptHint,
+  buildSleepClosureReconnectTrigger,
   conversationClosureFromMessages,
+  isFirstReconnectAfterSleepClosure,
   isConversationClosureActive,
 } from "./conversation-closure";
 
@@ -147,6 +149,7 @@ export async function attemptReconnect(
     lastConversationMood: session.lastConversationMood,
     relationshipStage: session.relationshipStage,
   });
+  const isSleepClosureReconnect = isFirstReconnectAfterSleepClosure(closure, session.messages);
   const returnActivity = expiredReturnActivity(session.activities);
 
   // 선톡이 실제로 필요한지 먼저 판단한다. claimReconnectSlot은 last_active_at을 "지금"으로
@@ -176,13 +179,18 @@ export async function attemptReconnect(
   const commitmentHint = buildCommitmentPromptHint(session.commitments);
   const activityReturnHint = buildActivityReturnPromptHint(returnActivity);
   const limitEndingHint = recentLimitEndingHint(session);
-  const expiredClosureHint = buildExpiredClosurePromptHint(closure);
+  const expiredClosureHint = isSleepClosureReconnect
+    ? buildExpiredClosurePromptHint(closure, session.personaType)
+    : "";
+  const reconnectMoodHint = isSleepClosureReconnect
+    ? "이전 대화는 합의된 취침 인사로 끝났으므로 부재에 대한 서운함이나 기다림은 전혀 없어. 가볍고 편안한 아침 안부만 건네."
+    : mood.promptHint;
   const systemPromptParts = [
     PERSONA_BASE,
     buildCharacterNameHint(session.characterName, session.personaType),
     buildUserNameHint(session.userName),
     buildCurrentTimePromptHint(),
-    `[현재 감정 상태 힌트]\n${mood.promptHint}`,
+    `[현재 감정 상태 힌트]\n${reconnectMoodHint}`,
     STRUCTURED_OUTPUT_GUIDE,
   ];
   if (emotionHint) systemPromptParts.push(emotionHint);
@@ -210,7 +218,9 @@ export async function attemptReconnect(
 
   const historyTrigger = returnActivity
     ? buildActivityReturnTrigger(returnActivity)
-    : buildReconnectTrigger(mood.elapsedMs, mood.state, session.lastMessageAt);
+    : isSleepClosureReconnect
+      ? buildSleepClosureReconnectTrigger()
+      : buildReconnectTrigger(mood.elapsedMs, mood.state, session.lastMessageAt);
   const history: LLMMessage[] = buildEventHistory(session.messages, historyTrigger);
 
   try {
