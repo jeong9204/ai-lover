@@ -62,10 +62,10 @@ export function ChatHeader({
             <button
               onClick={onOpenAdminCosts}
               disabled={loading || callEnding}
-              title="LLM 토큰/비용 보기"
+              title="제품 지표 보기"
               className="text-sm font-semibold text-gray-600 disabled:opacity-40"
             >
-              비용
+              지표
             </button>
             <button
               onClick={onResetSession}

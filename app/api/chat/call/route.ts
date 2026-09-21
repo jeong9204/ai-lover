@@ -46,9 +46,14 @@ import {
   buildConversationTopicPromptHint,
   guardUnconfirmedMeetupTopics,
 } from "@/lib/conversation-topics";
+import {
+  recordProductEvent,
+  recordRelationshipStageChange,
+} from "@/lib/product-events";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
 const MAX_DURATION_SEC = 3600;
+const ANALYTICS_EVENT_ID_PATTERN = /^[a-zA-Z0-9_-]{8,80}$/;
 
 export async function POST(req: NextRequest) {
   try {
@@ -62,15 +67,19 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleCallPost(req: NextRequest): Promise<NextResponse> {
-  const { durationSec, endedBy = "user" } = (await req.json()) as {
+  const { durationSec, endedBy = "user", callId } = (await req.json()) as {
     durationSec?: number;
     endedBy?: "user" | "assistant";
+    callId?: string;
   };
   if (typeof durationSec !== "number" || !Number.isFinite(durationSec) || durationSec < 0) {
     return NextResponse.json({ error: "durationSec이 필요합니다." }, { status: 400 });
   }
   const clampedDuration = Math.min(Math.round(durationSec), MAX_DURATION_SEC);
   const callEndedBy = endedBy === "assistant" ? "assistant" : "user";
+  const analyticsCallId =
+    callId && ANALYTICS_EVENT_ID_PATTERN.test(callId) ? callId : crypto.randomUUID();
+  const analyticsDedupeKey = `call:${analyticsCallId}`;
 
   const result = await getOrCreateSession(req.headers.get("x-session-id"));
   if (result.status === "error") {
@@ -91,6 +100,30 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     eventType: "call_ended",
     metadata: { callEndedBy },
   };
+  const callCompletionStatus = await recordProductEvent({
+    sessionId: session.id,
+    eventName: "call_completed",
+    dedupeKey: analyticsDedupeKey,
+    eventData: { durationSec: clampedDuration, endedBy: callEndedBy },
+    createdAt: now,
+  });
+  if (callCompletionStatus === "duplicate") {
+    return NextResponse.json({
+      sessionId: session.id,
+      characterName: session.characterName,
+      personaType: session.personaType,
+      callEndedMessage,
+      replyMessage: null,
+      relationshipStage: session.relationshipStage,
+      devMode,
+      commitments: session.commitments,
+      activities: session.activities,
+      topicState: session.topicState,
+      dailyMessageCount: messageCountBeforeCall,
+      dailyMessageLimit,
+      duplicate: true,
+    });
+  }
   if (!devMode && messageCountBeforeCall >= dailyMessageLimit) {
     const canRequestFeedbackBonus = !(await hasFeedbackBonusRequestToday(session.id));
     const limitMessage: ChatMessage = {
@@ -253,6 +286,14 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
     lastConversationMood: conversationMoodFromEmotion(structured.emotion),
     lastActiveAt: Date.now(),
     topicState,
+  });
+  await recordRelationshipStageChange({
+    sessionId: session.id,
+    previousStage: session.relationshipStage,
+    nextStage: relationshipStage,
+    userMessageCount: session.messages.filter((message) => message.role === "user").length,
+    dedupeKey: analyticsDedupeKey,
+    createdAt: now,
   });
 
   return NextResponse.json({

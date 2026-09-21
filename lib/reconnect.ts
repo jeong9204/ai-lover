@@ -63,6 +63,7 @@ import {
   isConversationClosureActive,
 } from "./conversation-closure";
 import { buildGeneralReconnectPromptHint } from "./reconnect-context";
+import { recordRelationshipStageChange } from "./product-events";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -280,6 +281,14 @@ export async function attemptReconnect(
       lastConversationMood: conversationMoodFromEmotion(structured.emotion),
       lastActiveAt: now,
       topicState,
+    });
+    await recordRelationshipStageChange({
+      sessionId: session.id,
+      previousStage: session.relationshipStage,
+      nextStage: relationshipStage,
+      userMessageCount: session.messages.filter((message) => message.role === "user").length,
+      dedupeKey: `reconnect:${reconnectMessage?.timestamp ?? now}`,
+      createdAt: reconnectMessage?.timestamp ?? now,
     });
   } catch {
     // 먼저 말 걸기 생성 실패는 조용히 무시 — 호출부(세션 로드/cron) 흐름을 막지 않는다.

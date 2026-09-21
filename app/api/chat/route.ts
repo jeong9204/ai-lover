@@ -86,8 +86,13 @@ import {
   completeMeetupTopicState,
   guardUnconfirmedMeetupTopics,
 } from "@/lib/conversation-topics";
+import {
+  recordProductEvent,
+  recordRelationshipStageChange,
+} from "@/lib/product-events";
 
 const SESSION_LOAD_ERROR = "이전 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.";
+const ANALYTICS_EVENT_ID_PATTERN = /^[a-zA-Z0-9_-]{8,80}$/;
 
 function getSessionIdHeader(req: NextRequest): string | null {
   return req.headers.get("x-session-id");
@@ -111,9 +116,18 @@ export async function GET(req: NextRequest) {
       Boolean(session.confessedAt)
     );
     if (recoveredConfessionAt) {
+      const previousStage = session.relationshipStage;
       await updateSession(session.id, {
         relationshipStage: CONFESSED_STAGE,
         confessedAt: recoveredConfessionAt,
+      });
+      await recordRelationshipStageChange({
+        sessionId: session.id,
+        previousStage,
+        nextStage: CONFESSED_STAGE,
+        userMessageCount: session.messages.filter((message) => message.role === "user").length,
+        dedupeKey: `recovered-confession:${recoveredConfessionAt}`,
+        createdAt: recoveredConfessionAt,
       });
       session.relationshipStage = CONFESSED_STAGE;
       session.confessedAt = recoveredConfessionAt;
@@ -172,10 +186,13 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleChatPost(req: NextRequest): Promise<NextResponse> {
-  const { message } = (await req.json()) as { message: string };
+  const { message, requestId } = (await req.json()) as { message: string; requestId?: string };
   if (!message || typeof message !== "string") {
     return NextResponse.json({ error: "message가 필요합니다." }, { status: 400 });
   }
+  const analyticsRequestId =
+    requestId && ANALYTICS_EVENT_ID_PATTERN.test(requestId) ? requestId : crypto.randomUUID();
+  const analyticsDedupeKey = `chat:${analyticsRequestId}`;
 
   const result = await getOrCreateSession(getSessionIdHeader(req));
   if (result.status === "error") {
@@ -420,6 +437,22 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
       };
       await appendMessage(session.id, meetupCompletedMessage);
       await appendMessage(session.id, meetupReturnMessage);
+      await Promise.all([
+        recordProductEvent({
+          sessionId: session.id,
+          eventName: "meetup_started",
+          dedupeKey: analyticsDedupeKey,
+          eventData: { kind: meetupKind },
+          createdAt: now + 1,
+        }),
+        recordProductEvent({
+          sessionId: session.id,
+          eventName: "meetup_completed",
+          dedupeKey: analyticsDedupeKey,
+          eventData: { kind: meetupKind },
+          createdAt: now + 3,
+        }),
+      ]);
       extraMessages.push(meetupCompletedMessage, meetupReturnMessage);
     } else if (replyEventType === null && shouldFastForwardBusyWork(structured.message)) {
       const timeSkipMessage: ChatMessage = {
@@ -473,6 +506,14 @@ async function handleChatPost(req: NextRequest): Promise<NextResponse> {
     lastActiveAt: now,
     topicState,
     ...(justConfessed ? { confessedAt: now } : {}),
+  });
+  await recordRelationshipStageChange({
+    sessionId: session.id,
+    previousStage: session.relationshipStage,
+    nextStage: relationshipStage,
+    userMessageCount: session.messages.filter((item) => item.role === "user").length + 1,
+    dedupeKey: analyticsDedupeKey,
+    createdAt: now,
   });
 
   const milestones = milestonesFromTurn({

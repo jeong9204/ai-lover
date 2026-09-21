@@ -38,7 +38,7 @@ lib/
   supabase.ts   서버 전용 Supabase 클라이언트 (service_role, 클라이언트 컴포넌트에서 import 금지)
 public/sw.js    Service Worker — push 이벤트 수신 시 알림 표시
 scripts/reconnect-cron.mjs   로컬 개발용 트리거 스크립트 (npm run cron)
-db/migrations/  Supabase 스키마 (0001_init.sql ~ 0012_relationship_commitments.sql)
+db/migrations/  Supabase 스키마 (0001_init.sql부터 번호 순서대로 실행)
 db/maintenance/ 운영 점검/테스트 데이터 정리용 SQL
 ```
 
@@ -151,6 +151,23 @@ npm run cron
 
 Supabase에는 전체 메시지를 그대로 저장하므로 사용자가 보는 대화 기록은 줄어들지 않습니다. 줄이는 건 오직
 LLM에 매번 다시 보내는 문맥입니다.
+
+## 제품 지표
+
+`?dev=DEV_MODE_SECRET`로 개발 모드를 켜고 헤더의 `지표` 버튼을 누르면 다음 항목을 확인할 수 있습니다.
+
+- 전체 세션, 오늘 활성/신규 세션, 사용자 메시지 수
+- KST 기준 D1/D3/D7 메시지 재방문
+- 선톡 6시간 내 응답률, 통화/만남 완료와 24시간 내 후속 메시지
+- 관계 단계 funnel, 일일 한도 도달, 피드백 보너스 노출/수령/추가 사용량
+- 답장·세션 평균 비용과 비용이 높은 세션
+
+메시지 수, retention, 선톡, 한도, 보너스 수령, 비용은 기존 테이블에서 계산합니다. 기존 데이터로 알 수 없는
+통화 시작, 관계 단계 변경 시점, 피드백 패널 노출과 lifecycle 중복 방지만 `product_events`에 기록합니다.
+관리자 API는 제품 집계를 위해 메시지 본문을 조회하거나 반환하지 않습니다.
+
+현재 retention은 로그인 사용자가 아닌 익명 `session_id` 기반 브라우저 retention입니다. 다른 기기, 시크릿 모드,
+localStorage 삭제 후에는 같은 사용자를 새 세션으로 집계합니다.
 
 ## 알려진 한계 / 의도적으로 타협한 부분
 

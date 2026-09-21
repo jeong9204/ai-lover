@@ -180,6 +180,8 @@ export default function Home() {
   const callIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callAutoEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callStartedAtRef = useRef<number | null>(null);
+  const activeCallIdRef = useRef<string | null>(null);
+  const feedbackExposureKeyRef = useRef<string | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -216,6 +218,14 @@ export default function Home() {
     if (sessionIdRef.current) headers.set("x-session-id", sessionIdRef.current);
     if (devSecretRef.current) headers.set("x-dev-secret", devSecretRef.current);
     return fetch(url, { ...init, headers });
+  }
+
+  function trackProductEvent(eventName: "call_started" | "feedback_bonus_exposed", eventId?: string) {
+    void fetchWithSession("/api/product-events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ eventName, eventId }),
+    }).catch(() => undefined);
   }
 
   function showTemporaryStatus(message: string, durationMs = 3000) {
@@ -541,10 +551,10 @@ export default function Home() {
     try {
       const res = await fetchWithSession("/api/admin/llm-costs");
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "비용 데이터를 불러오지 못했어요.");
+      if (!res.ok) throw new Error(data.error ?? "제품 지표를 불러오지 못했어요.");
       setAdminCostData(data);
     } catch (e) {
-      setAdminCostError(e instanceof Error ? e.message : "비용 데이터를 불러오지 못했어요.");
+      setAdminCostError(e instanceof Error ? e.message : "제품 지표를 불러오지 못했어요.");
     } finally {
       setAdminCostLoading(false);
     }
@@ -625,6 +635,16 @@ export default function Home() {
   }, [loading, sessionLoading]);
 
   useEffect(() => {
+    if (sessionLoading || !limitNotice || !canRequestFeedbackBonus || !sessionIdRef.current) return;
+    const exposureKey = `${sessionIdRef.current}:${koreanTodayKey()}`;
+    if (feedbackExposureKeyRef.current === exposureKey) return;
+    feedbackExposureKeyRef.current = exposureKey;
+    trackProductEvent("feedback_bonus_exposed");
+    // fetchWithSession은 ref만 읽으며, 같은 세션/날짜는 서버 dedupe_key로도 중복 방지된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionLoading, limitNotice, canRequestFeedbackBonus]);
+
+  useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
@@ -640,11 +660,12 @@ export default function Home() {
     setMessages((prev) => [...prev, { role: "user", content: text, timestamp: Date.now() }]);
     setLoading(true);
 
+    const requestId = crypto.randomUUID();
     try {
       const res = await fetchWithSession("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, requestId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -743,9 +764,12 @@ export default function Home() {
 
   function startCall() {
     if (activeCall || sessionLoading) return;
+    const callId = crypto.randomUUID();
     setCallSeconds(0);
     callStartedAtRef.current = Date.now();
+    activeCallIdRef.current = callId;
     setActiveCall(true);
+    trackProductEvent("call_started", callId);
     callIntervalRef.current = setInterval(() => {
       setCallSeconds((s) => s + 1);
     }, 1000);
@@ -765,7 +789,9 @@ export default function Home() {
     const durationSec = callStartedAtRef.current
       ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
       : callSeconds;
+    const callId = activeCallIdRef.current ?? crypto.randomUUID();
     callStartedAtRef.current = null;
+    activeCallIdRef.current = null;
     setActiveCall(false);
     setCallEnding(true);
 
@@ -773,7 +799,7 @@ export default function Home() {
       const res = await fetchWithSession("/api/chat/call", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ durationSec, endedBy }),
+        body: JSON.stringify({ durationSec, endedBy, callId }),
       });
       const data = await res.json();
       if (!res.ok) {
