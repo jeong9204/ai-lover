@@ -9,8 +9,6 @@ import type { PersonaType } from "./persona";
 import type { ChatMessage } from "./store";
 import { isDifferentKoreanDay, koreanDateLabel, koreanHour } from "./korean-date";
 
-const HOUR = 60 * 60 * 1000;
-
 /** Presence 상태가 평온(calm)이 아니면 캐릭터가 먼저 말 걸 조건이 충족된다. */
 export function shouldSendReconnectMessage(moodState: MoodState): boolean {
   return moodState !== "calm";
@@ -21,20 +19,19 @@ export function shouldSendReconnectMessage(moodState: MoodState): boolean {
  * 대화 기록에는 저장하지 않고, LLM 호출용 history의 마지막 항목으로만 잠깐 사용한다.
  */
 export function buildReconnectTrigger(
-  elapsedMs: number,
-  moodState: MoodState,
+  _elapsedMs: number,
+  _moodState: MoodState,
   lastMessageAt: number | null = null,
   now = Date.now()
 ): string {
-  const hours = Math.max(1, Math.round(elapsedMs / HOUR));
   const dayBoundary =
     lastMessageAt !== null && isDifferentKoreanDay(lastMessageAt, now)
       ? ` 이전 대화 날짜는 ${koreanDateLabel(lastMessageAt)}이고 지금은 ${koreanDateLabel(now)}라서 날짜가 바뀐 상황이다. 같은 밤이 이어지는 것처럼 말하지 마.`
       : "";
   return (
-    `[시스템: 마지막 대화 후 ${hours}시간이 지났고 유저는 아직 새 메시지를 보내지 않았다. ` +
-    `유저가 이전 메시지를 읽었거나 일부러 답하지 않았다고 가정하지 마. "왜 무시해", "기다렸어"처럼 ` +
-    `답장 의무를 전제로 말하지 말고, 지금 네 감정 상태(${moodState})에 맞게 네가 먼저 말을 걸어라.${dayBoundary}]`
+    `[시스템: 지금은 유저의 새 메시지에 답하는 턴이 아니라, 네가 자연스럽게 먼저 새 연락을 보내는 턴이다. ` +
+    `유저가 이전 메시지를 읽었거나 일부러 답하지 않았다고 가정하지 말고, 시간이 얼마나 지났는지도 언급하지 마. ` +
+    `사용자의 부재가 아니라 지금 새로 하고 싶은 말 자체로 시작해.${dayBoundary}]`
   );
 }
 

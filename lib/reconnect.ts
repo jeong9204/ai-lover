@@ -62,6 +62,7 @@ import {
   isFirstReconnectAfterSleepClosure,
   isConversationClosureActive,
 } from "./conversation-closure";
+import { buildGeneralReconnectPromptHint } from "./reconnect-context";
 
 export interface ReconnectResult {
   reconnectMessage: ChatMessage | null;
@@ -182,6 +183,19 @@ export async function attemptReconnect(
   const expiredClosureHint = isSleepClosureReconnect
     ? buildExpiredClosurePromptHint(closure, session.personaType)
     : "";
+  const latestConversationMessage = [...session.messages]
+    .reverse()
+    .find((message) => message.role === "user" || message.role === "assistant");
+  const isNewDayReconnect = latestConversationMessage
+    ? isDifferentKoreanDay(latestConversationMessage.timestamp, Date.now())
+    : false;
+  const generalReconnectHint = isSleepClosureReconnect
+    ? ""
+    : buildGeneralReconnectPromptHint({
+        topicState: session.topicState,
+        personaType: session.personaType,
+        isNewDay: isNewDayReconnect,
+      });
   const reconnectMoodHint = isSleepClosureReconnect
     ? "이전 대화는 합의된 취침 인사로 끝났으므로 부재에 대한 서운함이나 기다림은 전혀 없어. 가볍고 편안한 아침 안부만 건네."
     : mood.promptHint;
@@ -213,6 +227,7 @@ export async function attemptReconnect(
     session.personaType
   );
   if (afterMeetupHint) systemPromptParts.push(afterMeetupHint);
+  if (generalReconnectHint) systemPromptParts.push(generalReconnectHint);
   if (expiredClosureHint) systemPromptParts.push(expiredClosureHint);
   const systemPrompt = systemPromptParts.join("\n\n");
 

@@ -5,7 +5,7 @@
 // 키워드 매칭(JEALOUSY_KEYWORDS)은 더 이상 감정을 켜고 끄는 게이트가 아니라, LLM 판단을 보조하는
 // 참고 신호로만 system prompt에 살짝 얹는다 — 알려진 한계(오탐 가능성)는 여전히 남아있음.
 
-import { Emotion } from "./schema";
+import type { Emotion } from "./schema";
 
 const JEALOUSY_KEYWORDS = [
   "소개팅",
@@ -38,7 +38,8 @@ const EMOTION_HINTS: Record<Emotion, string> = {
   neutral: "",
   missing: `
 지금 은근히 유저가 그리운 상태야. 대놓고 "보고 싶었어" 하지 말고,
-"오늘따라 왜 이렇게 조용했어" 처럼 무심한 척 슬쩍 찔러보는 식으로 티 내.
+대화 중이라면 현재 유저의 말에 따뜻하게 반응하고, 먼저 연락하는 상황이라면 가벼운 새 말로 시작해.
+유저의 침묵, 연락 여부, 답장 여부를 언급하거나 그 이유를 추측하지 마.
 `.trim(),
   jealous: `
 지금 은근히 질투가 나는 상태야. 절대 "나 질투나" 처럼 직접 말하지 마.
