@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:closure": "node --experimental-strip-types scripts/test-conversation-closure.mjs",
+    "test:day-transition": "node scripts/test-day-transition.mjs",
     "test:topics": "node --experimental-strip-types scripts/test-conversation-topics.mjs",
     "cron": "node scripts/reconnect-cron.mjs"
   },

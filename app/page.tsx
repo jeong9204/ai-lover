@@ -107,6 +107,26 @@ function DevTopicState({ state }: { state: ConversationTopicState }) {
       {row("Recent Topics", state.recentTopics)}
       {row("Exhausted Topics", state.exhaustedTopics)}
       {row("Unresolved Topics", state.unresolvedTopics)}
+      {state.dayTransition && (
+        <>
+          <p>
+            <span className="font-semibold text-gray-600">New Day</span>{" "}
+            <span className="text-gray-800">
+              {state.dayTransition.currentDate === koreanTodayKey() ? "true" : "false"}
+            </span>
+          </p>
+          <p className="truncate text-gray-800">
+            <span className="font-semibold text-gray-600">Emotion Decay</span>{" "}
+            {state.dayTransition.emotionBefore.emotion} {state.dayTransition.emotionBefore.intensity.toFixed(2)}
+            {" → "}
+            {state.dayTransition.emotionAfter.emotion} {state.dayTransition.emotionAfter.intensity.toFixed(2)}
+          </p>
+          <p>
+            <span className="font-semibold text-gray-600">Last Emotion Decay Date</span>{" "}
+            <span className="text-gray-800">{state.dayTransition.currentDate}</span>
+          </p>
+        </>
+      )}
     </section>
   );
 }

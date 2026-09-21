@@ -1,6 +1,7 @@
 import type { ChatMessage } from "./store";
 import type { LLMMessage } from "./llm";
-import { isDifferentKoreanDay, koreanDateLabel } from "./korean-date";
+import type { ConversationTopicState } from "./conversation-topics";
+import { isDifferentKoreanDay, koreanDateKey, koreanDateLabel } from "./korean-date";
 
 const CHAT_HISTORY_LIMIT = 8;
 const EVENT_HISTORY_LIMIT = 6;
@@ -31,6 +32,11 @@ function isStaleLimitBlockedMessage(message: ChatMessage, now = Date.now()): boo
   return message.metadata?.limitBlocked === true && isDifferentKoreanDay(message.timestamp, now);
 }
 
+function messagesFromCurrentKoreanDay(messages: ChatMessage[], now = Date.now()): ChatMessage[] {
+  const currentDate = koreanDateKey(now);
+  return messages.filter((message) => koreanDateKey(message.timestamp) === currentDate);
+}
+
 export function messagesAfterLatestMeetupCompletion(messages: ChatMessage[]): ChatMessage[] {
   let completedIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -43,7 +49,7 @@ export function messagesAfterLatestMeetupCompletion(messages: ChatMessage[]): Ch
 }
 
 export function buildChatHistory(messages: ChatMessage[], nextUserMessage: string): LLMMessage[] {
-  const history = messagesAfterLatestMeetupCompletion(messages)
+  const history = messagesFromCurrentKoreanDay(messagesAfterLatestMeetupCompletion(messages))
     .filter((m) => m.role === "user" || m.role === "assistant")
     .slice(-CHAT_HISTORY_LIMIT)
     .map((m) => ({
@@ -56,7 +62,7 @@ export function buildChatHistory(messages: ChatMessage[], nextUserMessage: strin
 }
 
 export function buildEventHistory(messages: ChatMessage[], trigger: string): LLMMessage[] {
-  const history = messagesAfterLatestMeetupCompletion(messages)
+  const history = messagesFromCurrentKoreanDay(messagesAfterLatestMeetupCompletion(messages))
     .filter((m) => m.role === "user" || m.role === "assistant")
     .filter((m) => !isStaleLimitBlockedMessage(m))
     .slice(-EVENT_HISTORY_LIMIT)
@@ -70,7 +76,9 @@ export function buildEventHistory(messages: ChatMessage[], trigger: string): LLM
 }
 
 export function buildConversationSummaryHint(messages: ChatMessage[]): string | null {
-  const recent = messagesAfterLatestMeetupCompletion(messages).slice(-SUMMARY_LOOKBACK_LIMIT);
+  const recent = messagesFromCurrentKoreanDay(
+    messagesAfterLatestMeetupCompletion(messages)
+  ).slice(-SUMMARY_LOOKBACK_LIMIT);
   if (recent.length < 10) return null;
 
   const conversational = recent.filter((m) => m.role === "user" || m.role === "assistant");
@@ -167,23 +175,52 @@ export function buildWorkLoopAvoidanceHint(messages: ChatMessage[]): string | nu
 `.trim();
 }
 
-export function buildDayBoundaryPromptHint(messages: ChatMessage[], now = Date.now()): string | null {
+export function buildDayBoundaryPromptHint(
+  messages: ChatMessage[],
+  topicState?: ConversationTopicState,
+  now = Date.now()
+): string | null {
   const lastConversationMessage = [...messages].reverse().find((m) => m.role === "user" || m.role === "assistant");
   if (!lastConversationMessage || !isDifferentKoreanDay(lastConversationMessage.timestamp, now)) return null;
 
   const previousLabel = koreanDateLabel(lastConversationMessage.timestamp);
   const currentLabel = koreanDateLabel(now);
-  const lastContent = compactSummaryItem(lastConversationMessage.content);
-  const hadGoodnightContext = messages
-    .slice(-6)
+  const previousDate = koreanDateKey(lastConversationMessage.timestamp);
+  const previousMessages = messages.filter(
+    (message) => koreanDateKey(message.timestamp) === previousDate
+  );
+  const hadGoodnightContext = previousMessages
+    .slice(-8)
     .some((m) => /(잘\s*자|굿나잇|좋은\s*꿈|내일\s*봐|내일\s*카페|자기\s*전|졸려|잠들)/u.test(m.content));
+  const eventFacts = [
+    previousMessages.some((message) => message.eventType === "meetup_completed")
+      ? "둘은 만나고 돌아왔다"
+      : null,
+    previousMessages.some((message) => message.eventType === "call_ended")
+      ? "둘은 통화했다"
+      : null,
+    previousMessages.some((message) => message.eventType === "confession_ending")
+      ? "둘은 관계를 확인했다"
+      : null,
+  ].filter(Boolean);
+  const durableTopics = (topicState?.recentTopics ?? [])
+    .filter((topic) => !/(졸림|배고픔|피곤|심심|야식|샤워|붓기|지금|아까|이따)/u.test(topic))
+    .slice(-2);
+  const summaryParts = [
+    durableTopics.length > 0 ? `주요 소재: ${durableTopics.join(" / ")}` : null,
+    eventFacts.length > 0 ? `주요 사건: ${eventFacts.join(" / ")}` : null,
+    hadGoodnightContext ? "대화는 취침 인사로 자연스럽게 끝났다" : null,
+  ].filter(Boolean);
 
   return `
-[날짜 경계]
-마지막 대화는 ${previousLabel}이고, 지금은 ${currentLabel}이야. 마지막으로 남은 말은 "${lastContent}"였어.
-${hadGoodnightContext ? '어제 밤에 "잘 자", "내일 봐"처럼 마무리한 흐름이 있었어. ' : ""}
-이번 턴에는 같은 밤이 계속되는 것처럼 "안 자고 뭐해", "갑자기 조용해져서 잠들었나"라고 말하지 마.
-오늘 다시 시작된 대화로 받아들이고, 어제 약속/대화가 있으면 "오늘"의 일로 자연스럽게 이어가.
+[새로운 하루]
+마지막 대화는 ${previousLabel}이고, 지금은 ${currentLabel}이야.
+${summaryParts.length > 0 ? `어제의 짧은 참고 요약: ${summaryParts.join(". ")}.` : "어제 대화는 과거 맥락으로만 참고해."}
+- 사실과 관계, 실제 확정 약속은 이어지지만 어제의 순간 감정과 말투 분위기는 오늘의 현재 상태가 아니야.
+- 어제 마지막 문장이나 질문을 그대로 이어 답하지 말고, 현재 user 메시지를 최우선으로 받아.
+- 어제 일을 언급해야 한다면 "어제"라고 명시하고, "아까/지금/이따/오늘" 같은 표현을 현재 시점으로 재사용하지 마.
+- 어제의 졸림, 배고픔, 피곤함, 심심함, 외출, 샤워, 음주 같은 일시 상태가 아직 계속된다고 가정하지 마.
+- 저장된 약속의 "내일"은 오늘이 되었을 수 있으므로 [아직 이어지는 약속/계획]의 현재 기준 날짜 해석을 따라.
 `.trim();
 }
 

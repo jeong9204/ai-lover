@@ -313,6 +313,20 @@ export function extractCommitmentsFromTurn(input: {
   return drafts;
 }
 
+function dueLabelFromCurrentDate(commitment: Commitment, now = Date.now()): string | null {
+  const due = commitment.dueLabel;
+  if (!due) return null;
+  const elapsedDays = kstDayIndex(now) - kstDayIndex(commitment.createdAt);
+  const targetOffset = due === "오늘" ? 0 : due === "내일" ? 1 : due === "모레" ? 2 : null;
+  if (targetOffset !== null) {
+    if (elapsedDays === targetOffset) return "오늘";
+    if (elapsedDays > targetOffset) return "예정일 지남";
+    if (targetOffset - elapsedDays === 1) return "내일";
+    if (targetOffset - elapsedDays === 2) return "모레";
+  }
+  return due;
+}
+
 export function buildCommitmentPromptHint(commitments: Commitment[]): string {
   const pending = commitments.filter((item) => item.status === "pending").slice(-5);
   if (pending.length === 0) return "";
@@ -330,10 +344,12 @@ export function buildCommitmentPromptHint(commitments: Commitment[]): string {
 네가 맡은 일은 관련 상황에서 까먹은 척하지 마:
 ${pending
   .map((item) => {
-    const due = item.dueLabel ? ` / ${item.dueLabel}` : "";
+    const currentDue = dueLabelFromCurrentDate(item);
+    const due = currentDue ? ` / 현재 기준 ${currentDue}` : "";
     const detail = item.detail ? ` — ${item.detail}` : "";
     return `- ${item.title} (${ownerLabel[item.owner]}${due})${detail}`;
   })
   .join("\n")}
+원문 detail/source에 적힌 "오늘/내일/어제"는 약속을 만든 당시 표현이야. 위의 "현재 기준" 날짜를 우선해서 해석해.
 `.trim();
 }

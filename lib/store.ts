@@ -18,6 +18,7 @@ import {
   ConversationTopicState,
   normalizeConversationTopicState,
 } from "./conversation-topics";
+import { computeNewDayTransition } from "./day-transition";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system_event";
@@ -175,6 +176,27 @@ const FALLBACK_SESSION_COLUMNS =
 export type SessionResult =
   | { status: "ok"; session: SessionData; isNew: boolean }
   | { status: "error" };
+
+async function applyNewDayTransitionToSession(session: SessionData): Promise<void> {
+  const lastConversationAt = [...session.messages]
+    .reverse()
+    .find((message) => message.role === "user" || message.role === "assistant")?.timestamp ?? null;
+  const transition = computeNewDayTransition({
+    lastConversationAt,
+    emotion: session.emotion,
+    emotionIntensity: session.emotionIntensity,
+    topicState: session.topicState,
+    milestones: session.milestones,
+    memories: session.memories,
+  });
+  if (!transition) return;
+
+  await updateSession(session.id, transition);
+  session.emotion = transition.emotion;
+  session.emotionIntensity = transition.emotionIntensity;
+  session.lastConversationMood = transition.lastConversationMood;
+  session.topicState = transition.topicState;
+}
 
 function rowToSessionData(
   row: SessionRow,
@@ -536,7 +558,9 @@ export async function getOrCreateSession(sessionId: string | null): Promise<Sess
         loadCommitments(row.id),
         loadActivities(row.id),
       ]);
-      return { status: "ok", isNew: false, session: rowToSessionData(row, messages, memories, milestones, commitments, activities) };
+      const session = rowToSessionData(row, messages, memories, milestones, commitments, activities);
+      await applyNewDayTransitionToSession(session);
+      return { status: "ok", isNew: false, session };
     }
     // 조회는 성공했지만 해당 세션이 없음 → 새로 생성
   }

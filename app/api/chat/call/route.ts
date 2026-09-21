@@ -155,7 +155,7 @@ async function handleCallPost(req: NextRequest): Promise<NextResponse> {
   systemPromptParts.push(buildConversationTopicPromptHint(session.topicState));
   const conversationSummaryHint = buildConversationSummaryHint(session.messages);
   if (conversationSummaryHint) systemPromptParts.push(conversationSummaryHint);
-  const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages);
+  const dayBoundaryHint = buildDayBoundaryPromptHint(session.messages, session.topicState);
   if (dayBoundaryHint) systemPromptParts.push(dayBoundaryHint);
   const workLoopAvoidanceHint = buildWorkLoopAvoidanceHint(session.messages);
   if (workLoopAvoidanceHint) systemPromptParts.push(workLoopAvoidanceHint);

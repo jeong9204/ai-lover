@@ -2,6 +2,16 @@ export interface ConversationTopicState {
   recentTopics: string[];
   exhaustedTopics: string[];
   unresolvedTopics: string[];
+  dayTransition?: ConversationDayTransition;
+}
+
+export interface ConversationDayTransition {
+  previousDate: string;
+  currentDate: string;
+  emotionBefore: { emotion: string; intensity: number };
+  emotionAfter: { emotion: string; intensity: number };
+  significantEvent: boolean;
+  processedAt: number;
 }
 
 export interface ConversationTopicUpdate extends ConversationTopicState {
@@ -44,6 +54,35 @@ export const EMPTY_CONVERSATION_TOPIC_STATE: ConversationTopicState = {
   exhaustedTopics: [],
   unresolvedTopics: [],
 };
+
+function normalizeDayTransition(value: unknown): ConversationDayTransition | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Partial<ConversationDayTransition>;
+  const before = candidate.emotionBefore;
+  const after = candidate.emotionAfter;
+  if (
+    typeof candidate.previousDate !== "string" ||
+    typeof candidate.currentDate !== "string" ||
+    typeof candidate.processedAt !== "number" ||
+    typeof candidate.significantEvent !== "boolean" ||
+    !before ||
+    typeof before.emotion !== "string" ||
+    typeof before.intensity !== "number" ||
+    !after ||
+    typeof after.emotion !== "string" ||
+    typeof after.intensity !== "number"
+  ) {
+    return undefined;
+  }
+  return {
+    previousDate: candidate.previousDate,
+    currentDate: candidate.currentDate,
+    emotionBefore: { emotion: before.emotion, intensity: before.intensity },
+    emotionAfter: { emotion: after.emotion, intensity: after.intensity },
+    significantEvent: candidate.significantEvent,
+    processedAt: candidate.processedAt,
+  };
+}
 
 function compactTopic(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -116,10 +155,12 @@ export function normalizeConversationTopicState(value: unknown): ConversationTop
     normalizeTopics(candidate.recentTopics),
     [...exhaustedTopics, ...unresolvedTopics]
   );
+  const dayTransition = normalizeDayTransition(candidate.dayTransition);
   return {
     recentTopics,
     exhaustedTopics,
     unresolvedTopics,
+    ...(dayTransition ? { dayTransition } : {}),
   };
 }
 
@@ -153,6 +194,7 @@ export function applyConversationTopicUpdate(
     recentTopics: removeMatching(current.recentTopics, resolved),
     exhaustedTopics: removeMatching(current.exhaustedTopics, resolved),
     unresolvedTopics: removeMatching(current.unresolvedTopics, resolved),
+    ...(current.dayTransition ? { dayTransition: current.dayTransition } : {}),
   };
 
   next.recentTopics = appendTopics(
@@ -187,6 +229,7 @@ export function completeMeetupTopicState(stateValue: ConversationTopicState): Co
     recentTopics: withoutMeetupPreparation(state.recentTopics),
     exhaustedTopics: withoutMeetupPreparation(state.exhaustedTopics),
     unresolvedTopics: withoutMeetupPreparation(state.unresolvedTopics),
+    ...(state.dayTransition ? { dayTransition: state.dayTransition } : {}),
   };
 }
 

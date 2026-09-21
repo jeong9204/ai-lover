@@ -8,6 +8,7 @@ import {
 } from "../lib/conversation-topics.ts";
 import {
   commitmentIdsForCompletedMeetup,
+  buildCommitmentPromptHint,
   extractCommitmentsFromTurn,
   isHypotheticalMeetupProposal,
   isUserConfirmedMeetup,
@@ -240,5 +241,16 @@ const allowedExistingMeetupTopic = guardUnconfirmedMeetupTopics({
   hasConfirmedMeetup: true,
 });
 assert.deepEqual(allowedExistingMeetupTopic.unresolvedTopics, ["내일 만남 계획"]);
+
+const yesterday = Date.now() - 24 * 60 * 60 * 1000;
+const shiftedCommitmentHint = buildCommitmentPromptHint([
+  {
+    ...pendingMeetup,
+    id: "tomorrow-becomes-today",
+    createdAt: yesterday,
+  },
+]);
+assert.match(shiftedCommitmentHint, /현재 기준 오늘/u);
+assert.match(shiftedCommitmentHint, /당시 표현/u);
 
 console.log("conversation topic tests: ok");

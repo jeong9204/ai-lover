@@ -3,6 +3,7 @@
 // (알려진 한계: 의미적으로 유사하지만 키워드가 다른 기억은 회수되지 않음)
 
 import { Memory } from "./store";
+import { koreanDateKey } from "./korean-date";
 
 const MEETUP_PREPARATION_MEMORY_PATTERN =
   /(만나기로|만날\s*약속|보자고|보기로|데이트\s*(약속|준비)|몇\s*시에|어디서\s*볼|갈\s*곳|장소\s*(정|고르)|늦지|지각|입을\s*옷|뭐\s*입고)/u;
@@ -54,12 +55,16 @@ export function pickRelevantMemories(memories: Memory[], userMessage: string, ma
 export function buildMemoryPromptHint(memories: Memory[]): string {
   if (memories.length === 0) return "";
   const lines = memories
-    .map((m) => `- ${m.type === "relationship" ? "[둘 사이의 기억]" : "[유저 기억]"} ${m.text}`)
+    .map(
+      (m) =>
+        `- [${koreanDateKey(m.createdAt)} 기록] ${m.type === "relationship" ? "[둘 사이의 기억]" : "[유저 기억]"} ${m.text}`
+    )
     .join("\n");
   return `
 너는 유저와의 지난 대화에서 아래 내용들을 기억하고 있어. 마지막 user 메시지의 현재 화제가 최우선이야.
 현재 메시지와 직접 관련 있을 때만 자연스럽게 참고하고, 관련 없는 새 화제에는 먼저 꺼내거나 질문하지 마:
 ${lines}
+기록 속 "오늘/내일/어제/아까/지금/이따"는 기록 날짜 당시 표현이야. 현재 상태로 그대로 옮기지 말고 날짜를 바꿔 해석해.
 `.trim();
 }
 
